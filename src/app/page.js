@@ -1,10 +1,41 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { io } from 'socket.io-client';
 
 export default function AdminLiveOrders() {
+  const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [revenue, setRevenue] = useState(0);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  useEffect(() => {
+    // 🔒 Security Check: Ensure admin is logged in before showing the order dashboard
+    const adminToken = localStorage.getItem('shopmatries_admin_token') || localStorage.getItem('shopmatries_admin_auth');
+    if (!adminToken) {
+      router.push('/login');
+      return;
+    }
+    setIsAuthorized(true);
+
+    fetchOrders();
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
+
+    // Socket.io connection with polling fallback for stable connectivity
+    const socket = io(API_URL, {
+      transports: ['polling', 'websocket'],
+      secure: true,
+    });
+
+    socket.on('orderStatusUpdated', () => {
+      fetchOrders();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [router]);
 
   const fetchOrders = () => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
@@ -24,26 +55,6 @@ export default function AdminLiveOrders() {
         setRevenue(0);
       });
   };
-
-  useEffect(() => {
-    fetchOrders();
-
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
-
-    // Socket.io connection with polling fallback for stable connectivity
-    const socket = io(API_URL, {
-      transports: ['polling', 'websocket'],
-      secure: true,
-    });
-
-    socket.on('orderStatusUpdated', () => {
-      fetchOrders();
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
 
   const handleCheckpointUpdate = (orderId, newStatus, newProgress) => {
     // Optimistic UI update for instant speed
@@ -96,6 +107,14 @@ export default function AdminLiveOrders() {
     
     window.open(mapsUrl, '_blank');
   };
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center">
+        <p className="text-xs font-bold text-slate-500 animate-pulse">🔒 Verifying secure admin session...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 pb-6">
