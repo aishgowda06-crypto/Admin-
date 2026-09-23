@@ -31,7 +31,7 @@ export default function AdminRootLayout({ children }) {
                   Shop Matries <span className="text-emerald-600">Food Admin</span>
                 </h1>
               </div>
-              <a href="http://localhost:3000" target="_blank" className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 transition">
+              <a href="https://food-30d.pages.dev/" target="_blank" className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 transition">
                 Customer App ↗
               </a>
             </header>
