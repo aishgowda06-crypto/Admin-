@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 export default function AdminLoginPage() {
   const [passcode, setPasscode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -45,14 +46,26 @@ export default function AdminLoginPage() {
       </div>
 
       <form onSubmit={handleLogin} className="space-y-4">
-        <input
-          type="password"
-          placeholder="Admin passcode (e.g. )"
-          value={passcode}
-          onChange={(e) => { setPasscode(e.target.value); setError(false); }}
-          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-        />
+        {/* Input container with toggle button */}
+        <div className="relative">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Admin passcode (e.g. admin123)"
+            value={passcode}
+            onChange={(e) => { setPasscode(e.target.value); setError(false); }}
+            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 pr-10 text-xs text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer focus:outline-none"
+          >
+            {showPassword ? '🙈' : '👁️'}
+          </button>
+        </div>
+
         {error && <p className="text-[10px] text-red-400 font-bold">Invalid passcode. Check backend/database records.</p>}
+        
         <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-3 rounded-xl transition shadow-lg cursor-pointer">
           {loading ? 'Verifying...' : 'Authenticate & Enter'}
         </button>
