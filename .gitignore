@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.npm-cache/
+dist/
+build/
+.vite/
+.cache/
+.env
+.env.*
+!.env.example
