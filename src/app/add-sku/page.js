@@ -92,6 +92,7 @@ export default function AdminAddFoodDish() {
     
     let finalHotelName = 'Partner Hotel';
     let finalHotelId = formData.hotelId;
+    let finalHotelImage = formData.hotelImage;
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
 
     try {
@@ -113,6 +114,7 @@ export default function AdminAddFoodDish() {
         if (hotelData.success && hotelData.restaurant) {
           finalHotelName = hotelData.restaurant.name;
           finalHotelId = hotelData.restaurant._id;
+          finalHotelImage = hotelData.restaurant.image || formData.hotelImage;
         } else {
           finalHotelName = newHotelName;
           finalHotelId = 'h-' + Date.now();
@@ -121,16 +123,18 @@ export default function AdminAddFoodDish() {
         const selectedHotelObj = hotels.find(h => h._id === formData.hotelId || h.id === formData.hotelId);
         if (selectedHotelObj) {
           finalHotelName = selectedHotelObj.name;
+          finalHotelImage = selectedHotelObj.image || selectedHotelObj.hotelImage || '';
         }
       }
 
-      // Build a clean payload containing ONLY food-specific properties and the food dish image
+      // Build a clean payload including hotel store image and food dish details
       const foodPayload = {
         kannadaName: formData.kannadaName,
         englishName: formData.englishName,
         category: formData.category,
         hotelId: finalHotelId,
         hotelName: finalHotelName,
+        hotelImage: finalHotelImage, // 👈 Included to successfully save hotel store logo/image
         price: formData.price,
         image: formData.image // Strictly sends the food dish photo URL
       };

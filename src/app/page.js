@@ -1,41 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { io } from 'socket.io-client';
 
 export default function AdminLiveOrders() {
-  const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [revenue, setRevenue] = useState(0);
-  const [isAuthorized, setIsAuthorized] = useState(false);
-
-  useEffect(() => {
-    // 🔒 Security Check: Ensure admin is logged in before showing the order dashboard
-    const adminToken = localStorage.getItem('shopmatries_admin_token') || localStorage.getItem('shopmatries_admin_auth');
-    if (!adminToken) {
-      router.push('/login');
-      return;
-    }
-    setIsAuthorized(true);
-
-    fetchOrders();
-
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
-
-    // Socket.io connection with polling fallback for stable connectivity
-    const socket = io(API_URL, {
-      transports: ['polling', 'websocket'],
-      secure: true,
-    });
-
-    socket.on('orderStatusUpdated', () => {
-      fetchOrders();
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [router]);
 
   const fetchOrders = () => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
@@ -55,6 +24,26 @@ export default function AdminLiveOrders() {
         setRevenue(0);
       });
   };
+
+  useEffect(() => {
+    fetchOrders();
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
+
+    // Socket.io connection with polling fallback for stable connectivity
+    const socket = io(API_URL, {
+      transports: ['polling', 'websocket'],
+      secure: true,
+    });
+
+    socket.on('orderStatusUpdated', () => {
+      fetchOrders();
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   const handleCheckpointUpdate = (orderId, newStatus, newProgress) => {
     // Optimistic UI update for instant speed
@@ -92,6 +81,34 @@ export default function AdminLiveOrders() {
       });
   };
 
+  // Bulk delete all orders marked as delivered (progress === 100 or status === 'Delivered')
+  const handleClearDeliveredOrders = async () => {
+    const deliveredOrders = orders.filter(o => o.progress === 100 || o.status === 'Delivered');
+    if (deliveredOrders.length === 0) {
+      alert('No delivered orders found to clear.');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to remove all ${deliveredOrders.length} delivered orders from the database?`)) {
+      return;
+    }
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
+
+    try {
+      await Promise.all(
+        deliveredOrders.map(ord => {
+          const ordId = ord._id || ord.id;
+          return fetch(`${API_URL}/api/orders/${ordId}`, { method: 'DELETE' });
+        })
+      );
+      fetchOrders();
+    } catch (err) {
+      console.error('Failed to clear delivered orders:', err);
+      fetchOrders();
+    }
+  };
+
   const handleOpenGoogleMaps = (addressString) => {
     if (!addressString) return;
     const gpsMatch = addressString.match(/\[GPS:\s*([0-9.]+),\s*([0-9.]+)\]/);
@@ -108,13 +125,21 @@ export default function AdminLiveOrders() {
     window.open(mapsUrl, '_blank');
   };
 
-  if (!isAuthorized) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-6 text-center">
-        <p className="text-xs font-bold text-slate-500 animate-pulse">🔒 Verifying secure admin session...</p>
-      </div>
-    );
-  }
+  // Helper function to format exact date and time from database timestamp
+  const formatOrderDateTime = (timestamp) => {
+    if (!timestamp) return 'Just now';
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return timestamp; // fallback if string
+    return date.toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  const deliveredCount = orders.filter(o => o.progress === 100 || o.status === 'Delivered').length;
 
   return (
     <div className="space-y-4 pb-6">
@@ -131,11 +156,19 @@ export default function AdminLiveOrders() {
         </div>
       </div>
 
-      {/* Dispatch Header */}
+      {/* Dispatch Header & Clear Delivered Button */}
       <div className="flex justify-between items-center px-1">
         <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
           <span>⚡ Live 1-Tap Checkpoint Dispatcher</span>
         </h2>
+        {deliveredCount > 0 && (
+          <button 
+            onClick={handleClearDeliveredOrders}
+            className="text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 px-2.5 py-1 rounded-xl transition cursor-pointer active:scale-95 shadow-sm"
+          >
+            🗑️ Clear Delivered ({deliveredCount})
+          </button>
+        )}
       </div>
 
       {/* Orders List */}
@@ -148,14 +181,16 @@ export default function AdminLiveOrders() {
         ) : (
           orders.map((ord, idx) => {
             const orderId = ord._id || ord.id;
+            const displayTime = formatOrderDateTime(ord.createdAt || ord.time);
+
             return (
               <div key={orderId || idx} className="bg-white border border-slate-200 p-4 rounded-3xl shadow-sm space-y-3 relative">
                 
-                {/* Top row: Order ID & Total */}
+                {/* Top row: Order ID & Exact Date/Time */}
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-col space-y-0.5">
                     <span className="text-xs font-black font-mono text-emerald-600">{orderId}</span>
-                    <span className="text-[10px] text-slate-400">{ord.time || 'Just now'}</span>
+                    <span className="text-[10px] font-bold text-slate-500">📅 {displayTime}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[9px] uppercase font-bold text-slate-400 mr-1">TOTAL</span>
