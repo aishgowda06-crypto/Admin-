@@ -7,7 +7,7 @@ export default function AdminFoodCatalogManager() {
   const [message, setMessage] = useState('');
 
   const fetchProducts = () => {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
     fetch(`${API_URL}/api/foods`)
       .then(res => res.json())
@@ -33,7 +33,7 @@ export default function AdminFoodCatalogManager() {
   // Save updated price directly to backend
   const handleSavePrice = (prod) => {
     const targetId = prod._id || prod.id;
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
     fetch(`${API_URL}/api/foods/${targetId}`, {
       method: 'PUT',
@@ -54,7 +54,7 @@ export default function AdminFoodCatalogManager() {
   };
 
   const handleRemoveItem = (id) => {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
     fetch(`${API_URL}/api/foods/${id}`, {
       method: 'DELETE'
@@ -82,13 +82,13 @@ export default function AdminFoodCatalogManager() {
     <div className="space-y-4 pb-6">
       
       {/* Header Info */}
-      <div className="bg-white border border-slate-200 p-4 rounded-3xl shadow-sm space-y-1">
+      <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
         <h2 className="text-sm font-black text-slate-950">Food Catalog & Price Manager 🍱</h2>
         <p className="text-[11px] text-slate-500">Edit dish prices directly and sync changes to customer view in real time.</p>
       </div>
 
       {message && (
-        <div className="bg-white border border-emerald-200 text-emerald-700 text-xs font-bold p-3 rounded-2xl text-center shadow-sm">
+        <div className="bg-orange-50 border border-orange-200 text-orange-700 text-xs font-bold p-3 rounded-2xl text-center shadow-sm">
           {message}
         </div>
       )}
@@ -100,15 +100,15 @@ export default function AdminFoodCatalogManager() {
           placeholder="Search food dishes..." 
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-white border border-slate-200 text-slate-900 text-xs rounded-2xl p-3 pl-9 shadow-sm focus:outline-none focus:border-emerald-500"
+          className="w-full bg-white border border-orange-100 text-slate-900 text-xs rounded-2xl p-3 pl-9 shadow-sm focus:outline-none focus:border-orange-500"
         />
-        <span className="absolute left-3 top-3.5 text-slate-400">🔍</span>
+        <span className="absolute left-3 top-3.5 text-orange-400">🔍</span>
       </div>
 
       {/* Products List Feed */}
       <div className="space-y-3">
         {filteredProducts.length === 0 ? (
-          <div className="bg-white border border-slate-200 p-8 rounded-2xl text-center text-slate-400 text-xs font-bold">
+          <div className="bg-white border border-orange-100 p-8 rounded-2xl text-center text-slate-400 text-xs font-bold">
             No food items found in the database. Add dishes from the &quot;Add Dish&quot; tab!
           </div>
         ) : (
@@ -118,49 +118,49 @@ export default function AdminFoodCatalogManager() {
             const secondaryName = prod.kannadaName || primaryName;
 
             return (
-              <div key={itemId} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
+              <div key={itemId} className="bg-white border border-orange-100 p-4 rounded-2xl shadow-sm space-y-3">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center space-x-3">
                     {prod.image && (
-                      <img src={prod.image} alt={primaryName} className="w-12 h-12 rounded-xl object-cover border border-slate-100" />
+                      <img src={prod.image} alt={primaryName} className="w-12 h-12 rounded-xl object-cover border border-orange-100" />
                     )}
                     <div>
                       <p className="text-xs font-bold text-slate-900">{primaryName}</p>
                       <p className="text-[10px] text-slate-500 font-medium">({secondaryName})</p>
                       {/* 🏨 Displaying Hotel Name */}
                       {prod.hotelName && (
-                        <p className="text-[10px] font-extrabold text-emerald-600 mt-0.5">
+                        <p className="text-[10px] font-extrabold text-orange-600 mt-0.5">
                           🏨 {prod.hotelName}
                         </p>
                       )}
                     </div>
                   </div>
-                  <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                  <span className="text-[9px] bg-orange-50 border border-orange-200 text-orange-700 px-2 py-0.5 rounded-full font-bold">
                     {prod.category || 'Hotels'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1 items-center border-t border-slate-100 pt-3">
+                <div className="grid grid-cols-2 gap-2 pt-1 items-center border-t border-orange-100 pt-3">
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 uppercase">Base Price (₹)</label>
                     <input 
                       type="number"
                       value={prod.price}
                       onChange={(e) => handlePriceChange(itemId, e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 text-emerald-600 font-mono font-bold text-xs rounded-xl p-2 mt-1 focus:outline-none focus:border-emerald-500"
+                      className="w-full bg-orange-50/40 border border-orange-200 text-orange-600 font-mono font-bold text-xs rounded-xl p-2 mt-1 focus:outline-none focus:border-orange-500"
                     />
                   </div>
 
                   <div className="flex justify-end space-x-1.5 pt-4">
                     <button 
                       onClick={() => handleSavePrice(prod)}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-3 py-2 rounded-xl shadow-sm transition active:scale-95"
+                      className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-[10px] font-extrabold px-3 py-2 rounded-xl shadow-sm transition active:scale-95 cursor-pointer"
                     >
                       💾 Save
                     </button>
                     <button 
                       onClick={() => handleRemoveItem(itemId)}
-                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-2 rounded-xl transition"
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[10px] font-bold px-2.5 py-2 rounded-xl transition cursor-pointer"
                     >
                       🗑️
                     </button>

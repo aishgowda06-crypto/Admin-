@@ -8,18 +8,22 @@ export default function AdminAddFoodDish() {
     englishName: '',
     category: 'Hotels',
     hotelId: '',
-    hotelNameInput: '', // For manually typing a new hotel name
-    hotelImage: '',     // Photo for the new hotel
+    hotelNameInput: '', 
+    hotelImage: '',     
     price: '',
-    image: ''           // Photo for the food dish
+    image: '',          
+    rating: '4.8',      // Food rating out of 5
+    promoMedia: '',     // Promotional video/banner media URL
+    mediaType: 'image'  // 'image' or 'video'
   });
   const [message, setMessage] = useState('');
   const [uploadingFood, setUploadingFood] = useState(false);
   const [uploadingHotel, setUploadingHotel] = useState(false);
+  const [uploadingPromo, setUploadingPromo] = useState(false);
 
   // Fetch partner hotels directly from backend database
   useEffect(() => {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
     fetch(`${API_URL}/api/foods/restaurants`)
       .then(res => res.json())
@@ -56,12 +60,11 @@ export default function AdminAddFoodDish() {
       }
     } catch (err) {
       console.error('Cloudinary upload error:', err);
-      alert('Failed to upload image to Cloudinary.');
+      alert('Failed to upload file to Cloudinary.');
       return null;
     }
   };
 
-  // Handle food image upload directly to Cloudinary
   const handleFoodImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -74,7 +77,6 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Handle hotel image upload directly to Cloudinary
   const handleHotelImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -87,16 +89,32 @@ export default function AdminAddFoodDish() {
     }
   };
 
+  const handlePromoMediaChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploadingPromo(true);
+      const secureUrl = await uploadDirectToCloudinary(file);
+      if (secureUrl) {
+        const isVid = file.type.includes('video') || secureUrl.endsWith('.mp4');
+        setFormData(prev => ({ 
+          ...prev, 
+          promoMedia: secureUrl,
+          mediaType: isVid ? 'video' : 'image'
+        }));
+      }
+      setUploadingPromo(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     let finalHotelName = 'Partner Hotel';
     let finalHotelId = formData.hotelId;
     let finalHotelImage = formData.hotelImage;
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-ohea.onrender.com';
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
     try {
-      // If a new hotel is typed, save it along with its specific photo to the database first
       if (formData.hotelId === 'new') {
         const newHotelName = formData.hotelNameInput.trim() || 'New Partner Hotel';
         
@@ -106,7 +124,7 @@ export default function AdminAddFoodDish() {
           body: JSON.stringify({ 
             name: newHotelName, 
             address: 'Local Area',
-            image: formData.hotelImage // Strictly sends the hotel logo/store image
+            image: formData.hotelImage 
           })
         });
         const hotelData = await hotelRes.json();
@@ -127,19 +145,18 @@ export default function AdminAddFoodDish() {
         }
       }
 
-      // Build a clean payload including hotel store image and food dish details
       const foodPayload = {
         kannadaName: formData.kannadaName,
         englishName: formData.englishName,
         category: formData.category,
         hotelId: finalHotelId,
         hotelName: finalHotelName,
-        hotelImage: finalHotelImage, // 👈 Included to successfully save hotel store logo/image
+        hotelImage: finalHotelImage, 
         price: formData.price,
-        image: formData.image // Strictly sends the food dish photo URL
+        image: formData.image,
+        rating: formData.rating
       };
 
-      // Submit food dish payload to backend
       const foodRes = await fetch(`${API_URL}/api/foods`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,9 +165,24 @@ export default function AdminAddFoodDish() {
       
       const foodData = await foodRes.json();
 
+      // Submit promotional video or banner data to offers endpoint if provided
+      if (formData.promoMedia) {
+        await fetch(`${API_URL}/api/offers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: `${finalHotelName} Special Promo`,
+            subtitle: `Order ${formData.englishName} today!`,
+            bgMedia: formData.promoMedia,
+            mediaType: formData.mediaType,
+            tag: 'FEATURED DEAL'
+          })
+        }).catch(() => {});
+      }
+
       if (foodRes.ok && foodData.success) {
         setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu!`);
-        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', price: '', image: '' });
+        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage(`❌ ${foodData.error || 'Failed to add dish to backend catalog.'}`);
@@ -167,19 +199,19 @@ export default function AdminAddFoodDish() {
     <div className="space-y-4 pb-6">
       
       {/* Header Banner */}
-      <div className="bg-white border border-slate-200 p-4 rounded-3xl shadow-sm space-y-1">
-        <h2 className="text-sm font-black text-slate-950">Add Food Dish & Hotel (ಹೊಸ ಆಹಾರ ಮತ್ತು ಹೋಟೆಲ್ ಸೇರಿಸಿ)</h2>
-        <p className="text-[11px] text-slate-500">Select an existing hotel or type a new hotel name directly while adding your dish.</p>
+      <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
+        <h2 className="text-sm font-black text-slate-950">Add Food Dish & Promotions (ಹೊಸ ಆಹಾರ ಮತ್ತು ಪ್ರಚಾರ ಸೇರಿಸಿ)</h2>
+        <p className="text-[11px] text-slate-500">Manage menu dishes, ratings, hotel logos, and promotional video/image banners.</p>
       </div>
 
       {message && (
-        <div className="bg-white border border-emerald-200 text-emerald-700 text-xs font-bold p-3 rounded-2xl text-center shadow-sm">
+        <div className="bg-orange-50 border border-orange-200 text-orange-700 text-xs font-bold p-3 rounded-2xl text-center shadow-sm">
           {message}
         </div>
       )}
 
       {/* Form Container */}
-      <form onSubmit={handleSubmit} className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-3">
+      <form onSubmit={handleSubmit} className="bg-white border border-orange-100 p-5 rounded-3xl shadow-sm space-y-3">
         
         {/* Hotel Selector / Creator */}
         <div className="space-y-2">
@@ -187,7 +219,7 @@ export default function AdminAddFoodDish() {
           <select 
             value={formData.hotelId}
             onChange={(e) => setFormData({ ...formData, hotelId: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 font-bold cursor-pointer"
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold cursor-pointer"
             required
           >
             <option value="">-- Choose Existing Hotel --</option>
@@ -201,7 +233,6 @@ export default function AdminAddFoodDish() {
             <option value="new">➕ Type New Hotel Name...</option>
           </select>
 
-          {/* Input field and Hotel Photo upload appear only if 'Type New Hotel Name' is selected */}
           {formData.hotelId === 'new' && (
             <div className="space-y-3 pt-1 animate-fadeIn">
               <div>
@@ -210,28 +241,28 @@ export default function AdminAddFoodDish() {
                   placeholder="Enter new hotel name (e.g. Midari hotel)"
                   value={formData.hotelNameInput}
                   onChange={(e) => setFormData({ ...formData, hotelNameInput: e.target.value })}
-                  className="w-full bg-emerald-50/50 border border-emerald-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 font-bold"
+                  className="w-full bg-orange-50/50 border border-orange-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
                   required
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-emerald-800">Hotel Logo / Store Image (ಹೋಟೆಲ್ ಚಿತ್ರ) *</label>
+                <label className="text-[10px] font-bold text-orange-800">Hotel Logo / Store Image (ಹೋಟೆಲ್ ಚಿತ್ರ) *</label>
                 <input 
                   type="file" 
                   accept="image/*"
                   onChange={handleHotelImageChange}
-                  className="w-full bg-emerald-50/40 border border-emerald-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-700 cursor-pointer"
+                  className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer"
                   required
                 />
               </div>
 
               {uploadingHotel && (
-                <p className="text-[10px] text-emerald-600 font-bold animate-pulse">Uploading hotel image to Cloudinary...</p>
+                <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading hotel image to Cloudinary...</p>
               )}
 
               {formData.hotelImage && (
-                <div className="relative w-full h-24 bg-slate-100 rounded-xl overflow-hidden border border-emerald-200">
+                <div className="relative w-full h-24 bg-slate-100 rounded-xl overflow-hidden border border-orange-200">
                   <img src={formData.hotelImage} alt="Hotel Preview" className="w-full h-full object-cover" />
                 </div>
               )}
@@ -246,7 +277,7 @@ export default function AdminAddFoodDish() {
             placeholder="ಉದಾ: ಮಸಾಲೆ ದೋಸೆ, ಚಿಕನ್ ಬಿರಿಯಾನಿ"
             value={formData.kannadaName}
             onChange={(e) => setFormData({ ...formData, kannadaName: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500"
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
             required
           />
         </div>
@@ -258,18 +289,18 @@ export default function AdminAddFoodDish() {
             placeholder="e.g. Hyderabadi Chicken Biryani"
             value={formData.englishName}
             onChange={(e) => setFormData({ ...formData, englishName: e.target.value })}
-            className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500"
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
             required
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1 col-span-1">
             <label className="text-[10px] font-bold text-slate-600">Category *</label>
             <select 
               value={formData.category}
               onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 cursor-pointer"
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 cursor-pointer"
             >
               <option value="Hotels">Hotels</option>
               <option value="Breakfast">Breakfast</option>
@@ -281,14 +312,29 @@ export default function AdminAddFoodDish() {
             </select>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-600">Base Price (₹) *</label>
+          <div className="space-y-1 col-span-1">
+            <label className="text-[10px] font-bold text-slate-600">Price (₹) *</label>
             <input 
               type="number" 
               placeholder="250"
               value={formData.price}
               onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-              className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
+              required
+            />
+          </div>
+
+          <div className="space-y-1 col-span-1">
+            <label className="text-[10px] font-bold text-slate-600">Rating (/5) *</label>
+            <input 
+              type="number" 
+              step="0.1" 
+              max="5" 
+              min="1"
+              placeholder="4.8"
+              value={formData.rating}
+              onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
               required
             />
           </div>
@@ -301,25 +347,63 @@ export default function AdminAddFoodDish() {
             type="file" 
             accept="image/*"
             onChange={handleFoodImageChange}
-            className="w-full bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer"
             required
           />
         </div>
 
         {uploadingFood && (
-          <p className="text-[10px] text-emerald-600 font-bold animate-pulse">Uploading food image to Cloudinary...</p>
+          <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading food image to Cloudinary...</p>
         )}
 
-        {/* Food Image Preview Thumbnail */}
         {formData.image && (
-          <div className="relative w-full h-32 bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
+          <div className="relative w-full h-32 bg-slate-100 rounded-xl overflow-hidden border border-orange-200">
             <img src={formData.image} alt="Food Preview" className="w-full h-full object-cover" />
+          </div>
+        )}
+
+        {/* PROMOTIONAL VIDEO / BANNER SECTION */}
+        <div className="space-y-2 pt-3 border-t border-orange-100">
+          <div className="flex justify-between items-center">
+            <label className="text-[10px] font-bold text-orange-900 uppercase">🎬 Promotional Video / Banner (Optional)</label>
+            {formData.promoMedia && (
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, promoMedia: '' }))}
+                className="text-[9px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 cursor-pointer"
+              >
+                Remove Promo
+              </button>
+            )}
+          </div>
+          <input 
+            type="file" 
+            accept="image/*,video/*"
+            onChange={handlePromoMediaChange}
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-slate-900 file:text-white hover:file:bg-black cursor-pointer"
+          />
+          <p className="text-[9px] text-slate-400">Upload a promotional video (.mp4) or banner image to showcase in the customer home feed.</p>
+        </div>
+
+        {uploadingPromo && (
+          <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading promotional media...</p>
+        )}
+
+        {formData.promoMedia && (
+          <div className="relative w-full h-28 bg-slate-900 rounded-xl overflow-hidden border border-orange-200">
+            {formData.mediaType === 'video' ? (
+              <video autoPlay loop muted playsInline className="w-full h-full object-cover">
+                <source src={formData.promoMedia} />
+              </video>
+            ) : (
+              <img src={formData.promoMedia} alt="Promo Preview" className="w-full h-full object-cover" />
+            )}
           </div>
         )}
 
         <button 
           type="submit"
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black py-3 rounded-xl shadow-lg shadow-emerald-600/20 transition mt-2 active:scale-95 cursor-pointer"
+          className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3 rounded-xl shadow-lg shadow-orange-500/20 transition mt-2 active:scale-95 cursor-pointer"
         >
           + Save & Assign Dish to Hotel ⚡
         </button>
