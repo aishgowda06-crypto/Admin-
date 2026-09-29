@@ -64,12 +64,11 @@ export default function AdminLiveOrders() {
       body: JSON.stringify({ acceptedBy: deliveryPartnerName, status: 'Accepted' })
     })
       .then(res => res.json())
-      .then((updatedOrderData) => {
-        if (updatedOrderData && (updatedOrderData._id || updatedOrderData.id || updatedOrderData.order)) {
-          fetchOrders();
-        } else {
-          fetchOrders();
+      .then(data => {
+        if (!data || (data.success === false)) {
+          alert('⚠️ Failed to lock order on server. Please try again.');
         }
+        fetchOrders();
       })
       .catch((err) => {
         console.error('Failed to accept order:', err);
