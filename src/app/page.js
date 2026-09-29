@@ -30,7 +30,7 @@ export default function AdminLiveOrders() {
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
-    // Socket.io connection with polling fallback for stable connectivity[cite: 8]
+    // Socket.io connection with polling fallback for stable connectivity
     const socket = io(API_URL, {
       transports: ['polling', 'websocket'],
       secure: true,
@@ -54,7 +54,7 @@ export default function AdminLiveOrders() {
     }
 
     // Optimistic UI update
-    setOrders(prev => prev.map(o => (o._id === orderId || o.id === orderId) ? { ...o, acceptedBy: deliveryPartnerName, status: 'Accepted' } : o));
+    setOrders(prev => prev.map(o => ((o._id === orderId || o.id === orderId) ? { ...o, acceptedBy: deliveryPartnerName, status: 'Accepted' } : o)));
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -63,7 +63,14 @@ export default function AdminLiveOrders() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ acceptedBy: deliveryPartnerName, status: 'Accepted' })
     })
-      .then(() => fetchOrders())
+      .then(res => res.json())
+      .then((updatedOrderData) => {
+        if (updatedOrderData && (updatedOrderData._id || updatedOrderData.id || updatedOrderData.order)) {
+          fetchOrders();
+        } else {
+          fetchOrders();
+        }
+      })
       .catch((err) => {
         console.error('Failed to accept order:', err);
         fetchOrders();
@@ -76,8 +83,8 @@ export default function AdminLiveOrders() {
       return;
     }
 
-    // Optimistic UI update for instant speed[cite: 8]
-    setOrders(prev => prev.map(o => (o._id === orderId || o.id === orderId) ? { ...o, status: newStatus, progress: newProgress } : o));
+    // Optimistic UI update for instant speed
+    setOrders(prev => prev.map(o => ((o._id === orderId || o.id === orderId) ? { ...o, status: newStatus, progress: newProgress } : o)));
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -89,7 +96,7 @@ export default function AdminLiveOrders() {
       .then(() => fetchOrders())
       .catch((err) => {
         console.error('Failed to update checkpoint:', err);
-        fetchOrders(); // Revert on failure[cite: 8]
+        fetchOrders(); // Revert on failure
       });
   };
 
@@ -99,7 +106,7 @@ export default function AdminLiveOrders() {
       return;
     }
 
-    // Optimistic UI filter for instant speed[cite: 8]
+    // Optimistic UI filter for instant speed
     setOrders(prev => prev.filter(o => o._id !== orderId && o.id !== orderId));
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
@@ -116,7 +123,7 @@ export default function AdminLiveOrders() {
       });
   };
 
-  // Bulk delete all orders marked as delivered (progress === 100 or status === 'Delivered')[cite: 8]
+  // Bulk delete all orders marked as delivered (progress === 100 or status === 'Delivered')
   const handleClearDeliveredOrders = async () => {
     const deliveredOrders = orders.filter(o => o.progress === 100 || o.status === 'Delivered');
     if (deliveredOrders.length === 0) {
@@ -178,7 +185,7 @@ export default function AdminLiveOrders() {
   return (
     <div className="space-y-4 pb-6">
       
-      {/* Metric Cards Grid[cite: 8] */}
+      {/* Metric Cards Grid */}
       <div className="grid grid-cols-2 gap-2.5">
         <div className="bg-white border border-orange-100 p-3 rounded-2xl shadow-sm space-y-1">
           <p className="text-[10px] uppercase font-bold text-slate-400">Active Orders</p>
@@ -190,7 +197,7 @@ export default function AdminLiveOrders() {
         </div>
       </div>
 
-      {/* Dispatch Header & Clear Delivered Button[cite: 8] */}
+      {/* Dispatch Header & Clear Delivered Button */}
       <div className="flex justify-between items-center px-1">
         <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
           <span>⚡ Live 1-Tap Checkpoint Dispatcher (First-Come, First-Served)</span>
@@ -205,7 +212,7 @@ export default function AdminLiveOrders() {
         )}
       </div>
 
-      {/* Orders List[cite: 8] */}
+      {/* Orders List */}
       <div className="space-y-4">
         {orders.length === 0 ? (
           <div className="bg-white border border-orange-100 p-8 rounded-3xl text-center space-y-2 shadow-sm">
@@ -257,7 +264,7 @@ export default function AdminLiveOrders() {
                   )}
                 </div>
 
-                {/* Customer Contact & GPS / Live Map Tracking Button[cite: 8] */}
+                {/* Customer Contact & GPS / Live Map Tracking Button */}
                 <div className="text-xs space-y-2 bg-orange-50/50 p-2.5 rounded-xl border border-orange-100">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-slate-900">👤 {ord.customerName || 'Valued Customer'}</span>
@@ -277,7 +284,7 @@ export default function AdminLiveOrders() {
                   </div>
                 </div>
 
-                {/* 1-Tap Dispatch Checkpoints[cite: 8] */}
+                {/* 1-Tap Dispatch Checkpoints */}
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">1-Tap Dispatch Checkpoints:</p>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -308,9 +315,16 @@ export default function AdminLiveOrders() {
                   </div>
                 </div>
 
-                {/* Ordered Items Breakdown & Delivery Fee Display[cite: 8] */}
+                {/* Ordered Items Breakdown & Complete Details for Admin */}
                 <div className="space-y-1.5 pt-2 border-t border-orange-100">
-                  <p className="text-[10px] font-bold uppercase text-slate-400">Order & Delivery Breakdown</p>
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] font-bold uppercase text-slate-400">Order & Delivery Breakdown</p>
+                    {ord.ratePerKm !== undefined && (
+                      <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
+                        Rate: ₹{ord.ratePerKm}/km
+                      </span>
+                    )}
+                  </div>
                   
                   <div className="space-y-1">
                     {ord.items?.map((item, i) => (
@@ -320,17 +334,17 @@ export default function AdminLiveOrders() {
                       </div>
                     ))}
 
-                    {/* Delivery Partner Fee Row[cite: 8] */}
+                    {/* Delivery Partner Fee Row */}
                     <div className="flex justify-between items-center text-xs bg-orange-50/60 p-2 rounded-lg border border-orange-200">
                       <span className="text-orange-900 font-bold flex items-center space-x-1">
-                        <span>🛵 Delivery Partner Fee (30 mins guarantee)</span>
+                        <span>🛵 Delivery Fee (Distance-Based)</span>
                       </span>
                       <span className="font-mono font-bold text-orange-700">₹{ord.deliveryFee || 30}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Footer Payment Mode & Manual Delete Button[cite: 8] */}
+                {/* Footer Payment Mode & Manual Delete Button */}
                 <div className="flex justify-between items-center pt-2 text-[11px] border-t border-orange-100">
                   <span className="text-slate-500 font-medium">Payment: <strong className="text-slate-900">{ord.paymentMode || 'Online'}</strong> ({ord.paymentStatus || 'Paid'})</span>
                   <button 
