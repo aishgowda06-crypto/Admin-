@@ -10,16 +10,20 @@ export default function AdminAddFoodDish() {
     hotelId: '',
     hotelNameInput: '', 
     hotelImage: '',     
+    hotelLocation: '',   // Hotel exact address or Google Maps coordinates
     price: '',
     image: '',          
-    rating: '4.8',      // Food rating out of 5
-    promoMedia: '',     // Promotional video/banner media URL
-    mediaType: 'image'  // 'image' or 'video'
+    rating: '4.8',
+    promoMedia: '',
+    mediaType: 'image'
   });
   const [message, setMessage] = useState('');
   const [uploadingFood, setUploadingFood] = useState(false);
   const [uploadingHotel, setUploadingHotel] = useState(false);
   const [uploadingPromo, setUploadingPromo] = useState(false);
+  const [isPickingMap, setIsPickingMap] = useState(false);
+  const [mapLat, setMapLat] = useState(13.9299);
+  const [mapLng, setMapLng] = useState(75.5681);
 
   // Fetch partner hotels directly from backend database
   useEffect(() => {
@@ -106,12 +110,40 @@ export default function AdminAddFoodDish() {
     }
   };
 
+  // Open interactive Google Maps Picker Modal
+  const handleOpenMapPicker = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setMapLat(position.coords.latitude);
+          setMapLng(position.coords.longitude);
+          setIsPickingMap(true);
+        },
+        () => {
+          setIsPickingMap(true); // Default to Shivamogga Hub if permission denied
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    } else {
+      setIsPickingMap(true);
+    }
+  };
+
+  // Confirm and set coordinates picked from map
+  const handleConfirmMapLocation = () => {
+    const coordsStr = `[GPS: ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}]`;
+    setFormData(prev => ({ ...prev, hotelLocation: coordsStr }));
+    setIsPickingMap(false);
+    alert(`✓ Hotel Location Confirmed & Saved: ${mapLat.toFixed(4)}, ${mapLng.toFixed(4)}`);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     let finalHotelName = 'Partner Hotel';
     let finalHotelId = formData.hotelId;
     let finalHotelImage = formData.hotelImage;
+    let finalHotelLocation = formData.hotelLocation || 'Shivamogga Hub';
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
     try {
@@ -123,7 +155,7 @@ export default function AdminAddFoodDish() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             name: newHotelName, 
-            address: 'Local Area',
+            address: finalHotelLocation,
             image: formData.hotelImage 
           })
         });
@@ -152,6 +184,7 @@ export default function AdminAddFoodDish() {
         hotelId: finalHotelId,
         hotelName: finalHotelName,
         hotelImage: finalHotelImage, 
+        address: finalHotelLocation,
         price: formData.price,
         image: formData.image,
         rating: formData.rating
@@ -182,7 +215,7 @@ export default function AdminAddFoodDish() {
 
       if (foodRes.ok && foodData.success) {
         setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu!`);
-        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
+        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', hotelLocation: '', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage(`❌ ${foodData.error || 'Failed to add dish to backend catalog.'}`);
@@ -197,11 +230,66 @@ export default function AdminAddFoodDish() {
 
   return (
     <div className="space-y-4 pb-6">
+
+      {/* Interactive Google Maps Picker Modal */}
+      {isPickingMap && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-orange-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="text-sm font-black text-slate-950">🗺️ Pick Hotel Location on Google Maps</h3>
+              <button onClick={() => setIsPickingMap(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xs cursor-pointer">✕ Close</button>
+            </div>
+            
+            <p className="text-xs text-slate-600">
+              Drag or use the interactive map below to pinpoint the exact location of the hotel. Click confirm once pinned.
+            </p>
+
+            <div className="w-full h-64 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
+              <iframe
+                title="Google Maps Location Picker"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                loading="lazy"
+                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=15&output=embed`}
+              ></iframe>
+            </div>
+
+            <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 text-xs font-mono font-bold text-orange-900 text-center">
+              Pinned Coordinates: {mapLat.toFixed(5)}, {mapLng.toFixed(5)}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((pos) => {
+                      setMapLat(pos.coords.latitude);
+                      setMapLng(pos.coords.longitude);
+                    });
+                  }
+                }}
+                className="bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold py-3 rounded-xl transition cursor-pointer"
+              >
+                🛰️ Recenter to My GPS
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmMapLocation}
+                className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-black py-3 rounded-xl shadow transition cursor-pointer active:scale-95"
+              >
+                Confirm Hotel Location ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Header Banner */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
-        <h2 className="text-sm font-black text-slate-950">Add Food Dish & Promotions (ಹೊಸ ಆಹಾರ ಮತ್ತು ಪ್ರಚಾರ ಸೇರಿಸಿ)</h2>
-        <p className="text-[11px] text-slate-500">Manage menu dishes, ratings, hotel logos, and promotional video/image banners.</p>
+        <h2 className="text-sm font-black text-slate-950">Add Food Dish & Hotel Location (ಹೊಸ ಆಹಾರ ಮತ್ತು ಹೋಟೆಲ್ ಸ್ಥಳ ಸೇರಿಸಿ)</h2>
+        <p className="text-[11px] text-slate-500">Manage menu dishes, ratings, hotel logos, exact map location picker, and promotions.</p>
       </div>
 
       {message && (
@@ -244,6 +332,29 @@ export default function AdminAddFoodDish() {
                   className="w-full bg-orange-50/50 border border-orange-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
                   required
                 />
+              </div>
+
+              {/* Interactive Google Maps Hotel Location Picker */}
+              <div className="space-y-1 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-black text-orange-900 uppercase">📍 Hotel Location (Google Maps Picker)</label>
+                  <button 
+                    type="button"
+                    onClick={handleOpenMapPicker}
+                    className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition cursor-pointer shadow active:scale-95 flex items-center space-x-1"
+                  >
+                    <span>🗺️ Choose Hotel Location on Maps</span>
+                  </button>
+                </div>
+                <input 
+                  type="text"
+                  placeholder="Click above to select exact hotel location on maps"
+                  value={formData.hotelLocation}
+                  onChange={(e) => setFormData({ ...formData, hotelLocation: e.target.value })}
+                  className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:outline-none font-mono font-medium mt-1"
+                  required
+                />
+                <p className="text-[9px] text-slate-500">This exact pinned location is used to calculate precise customer delivery distances and fees.</p>
               </div>
 
               <div className="space-y-1">

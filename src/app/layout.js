@@ -27,9 +27,13 @@ export default function AdminRootLayout({ children }) {
                 Shop Matries <span className="text-orange-600">Food Admin</span>
               </h1>
             </div>
+            <a href="/geofence" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition">
+              🗺️ Geo-Fence Zone ↗
+            </a>
             <a href="http://localhost:3000" target="_blank" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition">
               Customer App ↗
             </a>
+            
           </header>
 
           {/* Scrollable Content Area */}

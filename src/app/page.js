@@ -30,7 +30,7 @@ export default function AdminLiveOrders() {
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
-    // Socket.io connection with polling fallback for stable connectivity
+    // Socket.io connection with polling fallback for stable connectivity[cite: 8]
     const socket = io(API_URL, {
       transports: ['polling', 'websocket'],
       secure: true,
@@ -45,8 +45,38 @@ export default function AdminLiveOrders() {
     };
   }, []);
 
-  const handleCheckpointUpdate = (orderId, newStatus, newProgress) => {
-    // Optimistic UI update for instant speed
+  const handleAcceptByPartner = (orderId, currentAcceptedBy) => {
+    const deliveryPartnerName = localStorage.getItem('shopmatries_username') || localStorage.getItem('shopmatries_phone') || 'Delivery Partner';
+    
+    if (currentAcceptedBy && currentAcceptedBy !== deliveryPartnerName) {
+      alert(`⚠️ This order has already been accepted by another delivery partner (${currentAcceptedBy}). First-come, first-served rule applies!`);
+      return;
+    }
+
+    // Optimistic UI update
+    setOrders(prev => prev.map(o => (o._id === orderId || o.id === orderId) ? { ...o, acceptedBy: deliveryPartnerName, status: 'Accepted' } : o));
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
+
+    fetch(`${API_URL}/api/orders/${orderId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acceptedBy: deliveryPartnerName, status: 'Accepted' })
+    })
+      .then(() => fetchOrders())
+      .catch((err) => {
+        console.error('Failed to accept order:', err);
+        fetchOrders();
+      });
+  };
+
+  const handleCheckpointUpdate = (orderId, newStatus, newProgress, acceptedBy) => {
+    if (!acceptedBy) {
+      alert('⚠️ A delivery partner must accept this order first before updating delivery checkpoints!');
+      return;
+    }
+
+    // Optimistic UI update for instant speed[cite: 8]
     setOrders(prev => prev.map(o => (o._id === orderId || o.id === orderId) ? { ...o, status: newStatus, progress: newProgress } : o));
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
@@ -59,12 +89,17 @@ export default function AdminLiveOrders() {
       .then(() => fetchOrders())
       .catch((err) => {
         console.error('Failed to update checkpoint:', err);
-        fetchOrders(); // Revert on failure
+        fetchOrders(); // Revert on failure[cite: 8]
       });
   };
 
-  const handleDeleteOrder = (orderId) => {
-    // Optimistic UI filter for instant speed
+  const handleDeleteOrder = (orderId, acceptedBy) => {
+    if (acceptedBy) {
+      alert('⚠️ This order has already been accepted by a delivery partner and cannot be deleted!');
+      return;
+    }
+
+    // Optimistic UI filter for instant speed[cite: 8]
     setOrders(prev => prev.filter(o => o._id !== orderId && o.id !== orderId));
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
@@ -81,7 +116,7 @@ export default function AdminLiveOrders() {
       });
   };
 
-  // Bulk delete all orders marked as delivered (progress === 100 or status === 'Delivered')
+  // Bulk delete all orders marked as delivered (progress === 100 or status === 'Delivered')[cite: 8]
   const handleClearDeliveredOrders = async () => {
     const deliveredOrders = orders.filter(o => o.progress === 100 || o.status === 'Delivered');
     if (deliveredOrders.length === 0) {
@@ -143,7 +178,7 @@ export default function AdminLiveOrders() {
   return (
     <div className="space-y-4 pb-6">
       
-      {/* Metric Cards Grid */}
+      {/* Metric Cards Grid[cite: 8] */}
       <div className="grid grid-cols-2 gap-2.5">
         <div className="bg-white border border-orange-100 p-3 rounded-2xl shadow-sm space-y-1">
           <p className="text-[10px] uppercase font-bold text-slate-400">Active Orders</p>
@@ -155,10 +190,10 @@ export default function AdminLiveOrders() {
         </div>
       </div>
 
-      {/* Dispatch Header & Clear Delivered Button */}
+      {/* Dispatch Header & Clear Delivered Button[cite: 8] */}
       <div className="flex justify-between items-center px-1">
         <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
-          <span>⚡ Live 1-Tap Checkpoint Dispatcher</span>
+          <span>⚡ Live 1-Tap Checkpoint Dispatcher (First-Come, First-Served)</span>
         </h2>
         {deliveredCount > 0 && (
           <button 
@@ -170,7 +205,7 @@ export default function AdminLiveOrders() {
         )}
       </div>
 
-      {/* Orders List */}
+      {/* Orders List[cite: 8] */}
       <div className="space-y-4">
         {orders.length === 0 ? (
           <div className="bg-white border border-orange-100 p-8 rounded-3xl text-center space-y-2 shadow-sm">
@@ -181,6 +216,7 @@ export default function AdminLiveOrders() {
           orders.map((ord, idx) => {
             const orderId = ord._id || ord.id;
             const displayTime = formatOrderDateTime(ord.createdAt || ord.time);
+            const isAlreadyAccepted = Boolean(ord.acceptedBy);
 
             return (
               <div key={orderId || idx} className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-3 relative">
@@ -197,7 +233,31 @@ export default function AdminLiveOrders() {
                   </div>
                 </div>
 
-                {/* Customer Contact & GPS / Live Map Tracking Button */}
+                {/* First-Come, First-Served Acceptance Status Banner */}
+                <div className={`p-2.5 rounded-xl border text-xs flex justify-between items-center ${isAlreadyAccepted ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                  <div>
+                    <p className="font-extrabold text-[11px]">
+                      {isAlreadyAccepted ? `✅ Accepted by: ${ord.acceptedBy}` : '⚡ Open Order (First-Come, First-Served)'}
+                    </p>
+                    <p className="text-[9px] opacity-80">
+                      {isAlreadyAccepted ? 'Locked against deletion or re-assignment.' : 'Tap accept to lock this order exclusively for delivery.'}
+                    </p>
+                  </div>
+                  {!isAlreadyAccepted ? (
+                    <button
+                      onClick={() => handleAcceptByPartner(orderId, ord.acceptedBy)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg shadow transition cursor-pointer active:scale-95 shrink-0"
+                    >
+                      Accept Order 🎯
+                    </button>
+                  ) : (
+                    <span className="bg-emerald-200 text-emerald-900 text-[9px] font-black px-2 py-1 rounded-md uppercase">
+                      Claimed 🔒
+                    </span>
+                  )}
+                </div>
+
+                {/* Customer Contact & GPS / Live Map Tracking Button[cite: 8] */}
                 <div className="text-xs space-y-2 bg-orange-50/50 p-2.5 rounded-xl border border-orange-100">
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-slate-900">👤 {ord.customerName || 'Valued Customer'}</span>
@@ -217,30 +277,30 @@ export default function AdminLiveOrders() {
                   </div>
                 </div>
 
-                {/* 1-Tap Dispatch Checkpoints */}
+                {/* 1-Tap Dispatch Checkpoints[cite: 8] */}
                 <div className="space-y-1.5">
                   <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">1-Tap Dispatch Checkpoints:</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     <button 
-                      onClick={() => handleCheckpointUpdate(orderId, 'Hub', 0)}
+                      onClick={() => handleCheckpointUpdate(orderId, 'Hub', 0, ord.acceptedBy)}
                       className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition cursor-pointer active:scale-95 ${ord.progress === 0 ? 'bg-orange-500 text-white border-orange-500 shadow-sm' : 'bg-orange-50/30 text-slate-700 border-orange-100 hover:bg-orange-50'}`}
                     >
                       1. Hub (0%)
                     </button>
                     <button 
-                      onClick={() => handleCheckpointUpdate(orderId, 'Picked', 35)}
+                      onClick={() => handleCheckpointUpdate(orderId, 'Picked', 35, ord.acceptedBy)}
                       className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition cursor-pointer active:scale-95 ${ord.progress === 35 ? 'bg-orange-500 text-white border-orange-500 shadow-sm' : 'bg-orange-50/30 text-slate-700 border-orange-100 hover:bg-orange-50'}`}
                     >
                       2. Picked (35%)
                     </button>
                     <button 
-                      onClick={() => handleCheckpointUpdate(orderId, 'Near Area', 70)}
+                      onClick={() => handleCheckpointUpdate(orderId, 'Near Area', 70, ord.acceptedBy)}
                       className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition cursor-pointer active:scale-95 ${ord.progress === 70 ? 'bg-orange-500 text-white border-orange-500 shadow-sm' : 'bg-orange-50/30 text-slate-700 border-orange-100 hover:bg-orange-50'}`}
                     >
                       3. Near Area (70%)
                     </button>
                     <button 
-                      onClick={() => handleCheckpointUpdate(orderId, 'Delivered', 100)}
+                      onClick={() => handleCheckpointUpdate(orderId, 'Delivered', 100, ord.acceptedBy)}
                       className={`py-2 px-3 rounded-xl text-[10px] font-bold border transition cursor-pointer active:scale-95 ${ord.progress === 100 ? 'bg-orange-500 text-white border-orange-500 shadow-sm' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'}`}
                     >
                       4. Delivered (100%)
@@ -248,7 +308,7 @@ export default function AdminLiveOrders() {
                   </div>
                 </div>
 
-                {/* Ordered Items Breakdown & Delivery Fee Display */}
+                {/* Ordered Items Breakdown & Delivery Fee Display[cite: 8] */}
                 <div className="space-y-1.5 pt-2 border-t border-orange-100">
                   <p className="text-[10px] font-bold uppercase text-slate-400">Order & Delivery Breakdown</p>
                   
@@ -260,7 +320,7 @@ export default function AdminLiveOrders() {
                       </div>
                     ))}
 
-                    {/* Delivery Partner Fee Row */}
+                    {/* Delivery Partner Fee Row[cite: 8] */}
                     <div className="flex justify-between items-center text-xs bg-orange-50/60 p-2 rounded-lg border border-orange-200">
                       <span className="text-orange-900 font-bold flex items-center space-x-1">
                         <span>🛵 Delivery Partner Fee (30 mins guarantee)</span>
@@ -270,14 +330,14 @@ export default function AdminLiveOrders() {
                   </div>
                 </div>
 
-                {/* Footer Payment Mode & Manual Delete Button */}
+                {/* Footer Payment Mode & Manual Delete Button[cite: 8] */}
                 <div className="flex justify-between items-center pt-2 text-[11px] border-t border-orange-100">
                   <span className="text-slate-500 font-medium">Payment: <strong className="text-slate-900">{ord.paymentMode || 'Online'}</strong> ({ord.paymentStatus || 'Paid'})</span>
                   <button 
-                    onClick={() => handleDeleteOrder(orderId)}
-                    className="text-rose-600 hover:text-rose-700 font-bold text-[10px] bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 transition cursor-pointer active:scale-95"
+                    onClick={() => handleDeleteOrder(orderId, ord.acceptedBy)}
+                    className={`font-bold text-[10px] px-2.5 py-1 rounded-lg border transition cursor-pointer ${isAlreadyAccepted ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-rose-50 text-rose-600 hover:text-rose-700 border-rose-200 active:scale-95'}`}
                   >
-                    Remove from DB ✕
+                    {isAlreadyAccepted ? 'Locked (Accepted) 🔒' : 'Remove from DB ✕'}
                   </button>
                 </div>
 

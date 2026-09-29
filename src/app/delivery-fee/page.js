@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 
 export default function AdminDeliveryFeePage() {
   const [deliveryFee, setDeliveryFee] = useState('30');
+  const [ratePerKm, setRatePerKm] = useState('5');
   const [message, setMessage] = useState('');
 
   // Restaurant operating hours states
@@ -22,7 +23,7 @@ export default function AdminDeliveryFeePage() {
     }
   });
 
-  // Fetch delivery fee and partner restaurants on mount[cite: 5]
+  // Fetch delivery fee and partner restaurants on mount[cite: 10]
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -31,6 +32,9 @@ export default function AdminDeliveryFeePage() {
       .then(data => {
         if (data && data.deliveryFee !== undefined) {
           setDeliveryFee(String(data.deliveryFee));
+        }
+        if (data && data.ratePerKm !== undefined) {
+          setRatePerKm(String(data.ratePerKm));
         }
       })
       .catch((err) => {
@@ -87,11 +91,14 @@ export default function AdminDeliveryFeePage() {
     fetch(`${API_URL}/api/settings/delivery-fee`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ deliveryFee: Number(deliveryFee) })
+      body: JSON.stringify({ 
+        deliveryFee: Number(deliveryFee),
+        ratePerKm: Number(ratePerKm) 
+      })
     })
       .then(res => res.json())
       .then(() => {
-        setMessage('✅ Delivery Partner Fee updated & synced successfully!');
+        setMessage('✅ Per-KM Delivery Fee updated & synced successfully!');
         setTimeout(() => setMessage(''), 3000);
       })
       .catch((err) => {
@@ -129,7 +136,7 @@ export default function AdminDeliveryFeePage() {
       {/* Header */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
         <h2 className="text-sm font-black text-slate-950">Delivery Fee & Store Hours Manager 🛵</h2>
-        <p className="text-[11px] text-slate-500">Configure delivery fees and automatic or manual store timings.</p>
+        <p className="text-[11px] text-slate-500">Configure distance-based per-KM delivery fees and automatic or manual store timings.</p>
       </div>
 
       {message && (
@@ -138,29 +145,42 @@ export default function AdminDeliveryFeePage() {
         </div>
       )}
 
-      {/* Delivery Fee Form */}
+      {/* Per-KM Delivery Fee Form */}
       <form onSubmit={handleSaveFee} className="bg-white border border-orange-100 p-5 rounded-3xl shadow-sm space-y-3">
-        <h3 className="text-xs font-black text-slate-900 uppercase">Delivery Fee Configuration</h3>
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-600 uppercase">Delivery Fee Amount (₹) *</label>
-          <input 
-            type="number"
-            value={deliveryFee}
-            onChange={(e) => setDeliveryFee(e.target.value)}
-            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
-            required
-          />
+        <h3 className="text-xs font-black text-slate-900 uppercase">Distance-Based Delivery Fee Configuration (Per KM)</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-600 uppercase">Base / Minimum Delivery Fee (₹) *</label>
+            <input 
+              type="number"
+              value={deliveryFee}
+              onChange={(e) => setDeliveryFee(e.target.value)}
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-600 uppercase">Rate Per KM (₹ / km) *</label>
+            <input 
+              type="number"
+              value={ratePerKm}
+              onChange={(e) => setRatePerKm(e.target.value)}
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
+              required
+            />
+          </div>
         </div>
+        <p className="text-[10px] text-slate-500">Delivery charges will automatically calculate based on the distance between the hotel and customer coordinates multiplied by ₹{ratePerKm} per km.</p>
 
         <button 
           type="submit"
           className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3 rounded-xl shadow-lg shadow-orange-500/20 transition active:scale-95 cursor-pointer"
         >
-          Save Delivery Fee ⚡
+          Save Per-KM Delivery Fee ⚡
         </button>
       </form>
 
-      {/* Operating Hours & Store Switch Form */}
+      {/* Operating Hours & Store Switch Form[cite: 10] */}
       <form onSubmit={handleSaveSchedule} className="bg-white border border-orange-100 p-5 rounded-3xl space-y-4 shadow-sm">
         <h3 className="text-xs font-black text-slate-900 uppercase">Store Operating Hours & Status Switch</h3>
         
@@ -177,7 +197,7 @@ export default function AdminDeliveryFeePage() {
           </select>
         </div>
 
-        {/* Operating Switch: Automatic vs Manual Override */}
+        {/* Operating Switch: Automatic vs Manual Override[cite: 10] */}
         <div className="bg-orange-50/60 p-4 rounded-2xl border border-orange-200 space-y-3">
           <div className="flex justify-between items-center">
             <div>
@@ -220,7 +240,7 @@ export default function AdminDeliveryFeePage() {
           )}
         </div>
 
-        {/* Weekly Timings Schedule */}
+        {/* Weekly Timings Schedule[cite: 10] */}
         <div className="space-y-2 pt-2">
           <h4 className="text-[11px] font-black text-slate-900 uppercase">Weekly Operating Schedule</h4>
           {Object.keys(schedule.operatingHours).map(day => {
