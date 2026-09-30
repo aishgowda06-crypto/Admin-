@@ -110,7 +110,7 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Open interactive Google Maps Picker Modal
+  // Open interactive Google Maps Picker Modal with precise geolocation
   const handleOpenMapPicker = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -129,12 +129,12 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Confirm and set coordinates picked from map
+  // Confirm and set exact coordinates picked from map
   const handleConfirmMapLocation = () => {
     const coordsStr = `[GPS: ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}]`;
     setFormData(prev => ({ ...prev, hotelLocation: coordsStr }));
     setIsPickingMap(false);
-    alert(`✓ Hotel Location Confirmed & Saved: ${mapLat.toFixed(4)}, ${mapLng.toFixed(4)}`);
+    alert(`✓ Exact Hotel Location Confirmed & Saved: ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}`);
   };
 
   const handleSubmit = async (e) => {
@@ -198,7 +198,6 @@ export default function AdminAddFoodDish() {
       
       const foodData = await foodRes.json();
 
-      // Submit promotional video or banner data to offers endpoint if provided
       if (formData.promoMedia) {
         await fetch(`${API_URL}/api/offers`, {
           method: 'POST',
@@ -231,32 +230,55 @@ export default function AdminAddFoodDish() {
   return (
     <div className="space-y-4 pb-6">
 
-      {/* Interactive Google Maps Picker Modal */}
+      {/* Interactive Precise Google Maps & Coordinates Picker Modal */}
       {isPickingMap && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-orange-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-sm font-black text-slate-950">🗺️ Pick Hotel Location on Google Maps</h3>
+              <h3 className="text-sm font-black text-slate-950">🗺️ Exact Hotel Location GPS Picker</h3>
               <button onClick={() => setIsPickingMap(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xs cursor-pointer">✕ Close</button>
             </div>
             
             <p className="text-xs text-slate-600">
-              Drag or use the interactive map below to pinpoint the exact location of the hotel. Click confirm once pinned.
+              Enter or adjust exact latitude and longitude coordinates below, or tap &quot;Recenter to My GPS&quot; while standing at the hotel for 100% accurate distance calculation.
             </p>
 
-            <div className="w-full h-64 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-700">Latitude</label>
+                <input 
+                  type="number"
+                  step="0.000001"
+                  value={mapLat}
+                  onChange={(e) => setMapLat(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-orange-50 border border-orange-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-700">Longitude</label>
+                <input 
+                  type="number"
+                  step="0.000001"
+                  value={mapLng}
+                  onChange={(e) => setMapLng(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-orange-50 border border-orange-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800"
+                />
+              </div>
+            </div>
+
+            <div className="w-full h-48 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
               <iframe
                 title="Google Maps Location Picker"
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
                 loading="lazy"
-                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=15&output=embed`}
+                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=17&output=embed`}
               ></iframe>
             </div>
 
             <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 text-xs font-mono font-bold text-orange-900 text-center">
-              Pinned Coordinates: {mapLat.toFixed(5)}, {mapLng.toFixed(5)}
+              Selected GPS: [GPS: {mapLat.toFixed(6)}, {mapLng.toFixed(6)}]
             </div>
 
             <div className="grid grid-cols-2 gap-2 pt-2">
@@ -267,7 +289,9 @@ export default function AdminAddFoodDish() {
                     navigator.geolocation.getCurrentPosition((pos) => {
                       setMapLat(pos.coords.latitude);
                       setMapLng(pos.coords.longitude);
-                    });
+                    }, () => {
+                      alert('Unable to retrieve your current location.');
+                    }, { enableHighAccuracy: true });
                   }
                 }}
                 className="bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold py-3 rounded-xl transition cursor-pointer"
@@ -279,7 +303,7 @@ export default function AdminAddFoodDish() {
                 onClick={handleConfirmMapLocation}
                 className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-black py-3 rounded-xl shadow transition cursor-pointer active:scale-95"
               >
-                Confirm Hotel Location ✓
+                Confirm Hotel GPS ✓
               </button>
             </div>
           </div>
@@ -334,27 +358,27 @@ export default function AdminAddFoodDish() {
                 />
               </div>
 
-              {/* Interactive Google Maps Hotel Location Picker */}
+              {/* Exact Google Maps Hotel Location Picker */}
               <div className="space-y-1 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
                 <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-black text-orange-900 uppercase">📍 Hotel Location (Google Maps Picker)</label>
+                  <label className="text-[10px] font-black text-orange-900 uppercase">📍 Exact Hotel GPS Location</label>
                   <button 
                     type="button"
                     onClick={handleOpenMapPicker}
                     className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition cursor-pointer shadow active:scale-95 flex items-center space-x-1"
                   >
-                    <span>🗺️ Choose Hotel Location on Maps</span>
+                    <span>🗺️ Pick Exact GPS Coordinates</span>
                   </button>
                 </div>
                 <input 
                   type="text"
-                  placeholder="Click above to select exact hotel location on maps"
+                  placeholder="[GPS: latitude, longitude]"
                   value={formData.hotelLocation}
                   onChange={(e) => setFormData({ ...formData, hotelLocation: e.target.value })}
                   className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:outline-none font-mono font-medium mt-1"
                   required
                 />
-                <p className="text-[9px] text-slate-500">This exact pinned location is used to calculate precise customer delivery distances and fees.</p>
+                <p className="text-[9px] text-slate-500">This exact GPS format is required for precise per-kilometer delivery fee calculations.</p>
               </div>
 
               <div className="space-y-1">
