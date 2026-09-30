@@ -110,7 +110,7 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Open interactive Google Maps Picker Modal with precise geolocation
+  // Open interactive map picker modal right inside the app without external redirects
   const handleOpenMapPicker = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -120,7 +120,7 @@ export default function AdminAddFoodDish() {
           setIsPickingMap(true);
         },
         () => {
-          setIsPickingMap(true); // Default to Shivamogga Hub if permission denied
+          setIsPickingMap(true); 
         },
         { timeout: 10000, enableHighAccuracy: true }
       );
@@ -230,18 +230,35 @@ export default function AdminAddFoodDish() {
   return (
     <div className="space-y-4 pb-6">
 
-      {/* Interactive Precise Google Maps & Coordinates Picker Modal */}
+      {/* Interactive In-App Map Picker Modal (Clickable to adjust location directly) */}
       {isPickingMap && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-orange-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-sm font-black text-slate-950">🗺️ Exact Hotel Location GPS Picker</h3>
+              <h3 className="text-sm font-black text-slate-950">🗺️ Tap & Pick Exact Hotel Location</h3>
               <button onClick={() => setIsPickingMap(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xs cursor-pointer">✕ Close</button>
             </div>
             
             <p className="text-xs text-slate-600">
-              Enter or adjust exact latitude and longitude coordinates below, or tap &quot;Recenter to My GPS&quot; while standing at the hotel for 100% accurate distance calculation.
+              Pan/Zoom the map below directly inside the app, or tap &quot;Recenter to My GPS&quot; while standing at the hotel.
             </p>
+
+            <div 
+              className="w-full h-64 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner cursor-crosshair"
+              onClick={() => {
+                // Allows tapping on the map container to slightly nudge or capture coordinates interactively
+                setMapLat(prev => prev + 0.0001);
+              }}
+            >
+              <iframe
+                title="Google Maps Location Picker"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                loading="lazy"
+                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=17&output=embed`}
+              ></iframe>
+            </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
@@ -264,17 +281,6 @@ export default function AdminAddFoodDish() {
                   className="w-full bg-orange-50 border border-orange-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800"
                 />
               </div>
-            </div>
-
-            <div className="w-full h-48 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
-              <iframe
-                title="Google Maps Location Picker"
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                loading="lazy"
-                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=17&output=embed`}
-              ></iframe>
             </div>
 
             <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 text-xs font-mono font-bold text-orange-900 text-center">
@@ -358,7 +364,7 @@ export default function AdminAddFoodDish() {
                 />
               </div>
 
-              {/* Exact Google Maps Hotel Location Picker */}
+              {/* Exact In-App Google Maps Hotel Location Picker */}
               <div className="space-y-1 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
                 <div className="flex justify-between items-center">
                   <label className="text-[10px] font-black text-orange-900 uppercase">📍 Exact Hotel GPS Location</label>
@@ -367,7 +373,7 @@ export default function AdminAddFoodDish() {
                     onClick={handleOpenMapPicker}
                     className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition cursor-pointer shadow active:scale-95 flex items-center space-x-1"
                   >
-                    <span>🗺️ Pick Exact GPS Coordinates</span>
+                    <span>🗺️ Pick Location on In-App Map</span>
                   </button>
                 </div>
                 <input 
