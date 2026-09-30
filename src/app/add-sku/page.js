@@ -111,23 +111,9 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Open map picker and fetch actual device GPS or fallback to Shivamogga center
+  // Open map picker modal
   const handleOpenMapPicker = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setMapLat(position.coords.latitude);
-          setMapLng(position.coords.longitude);
-          setIsPickingMap(true);
-        },
-        () => {
-          setIsPickingMap(true); 
-        },
-        { timeout: 10000, enableHighAccuracy: true }
-      );
-    } else {
-      setIsPickingMap(true);
-    }
+    setIsPickingMap(true);
   };
 
   // Confirm and set exact coordinates picked from map
@@ -236,22 +222,25 @@ export default function AdminAddFoodDish() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-orange-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-sm font-black text-slate-950">🗺️ Tap & Pick Exact Hotel Location</h3>
+              <h3 className="text-sm font-black text-slate-950">🗺️ Exact Hotel Location Finder (Home Admin)</h3>
               <button onClick={() => setIsPickingMap(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xs cursor-pointer">✕ Close</button>
             </div>
             
-            <p className="text-xs text-slate-600">
-              Verify your exact latitude and longitude coordinates below, or tap &quot;Recenter to My GPS&quot; while standing at the hotel.
-            </p>
+            <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl space-y-1 text-xs text-orange-900">
+              <p className="font-bold">💡 How to get exact coordinates from home:</p>
+              <p className="text-[11px] text-slate-700">1. Open Google Maps in a separate browser tab.</p>
+              <p className="text-[11px] text-slate-700">2. Right-click on the hotel in Shivamogga and click <b>&quot;What&apos;s here?&quot;</b></p>
+              <p className="text-[11px] text-slate-700">3. Copy the latitude & longitude numbers from the bottom card and paste them below.</p>
+            </div>
 
-            <div className="w-full h-56 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
+            <div className="w-full h-44 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
               <iframe
                 title="Google Maps Location Picker"
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
                 loading="lazy"
-                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=17&output=embed`}
+                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=16&output=embed`}
               ></iframe>
             </div>
 
@@ -278,26 +267,20 @@ export default function AdminAddFoodDish() {
               </div>
             </div>
 
-            <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 text-xs font-mono font-bold text-orange-900 text-center">
-              Selected GPS: [GPS: {mapLat.toFixed(6)}, {mapLng.toFixed(6)}]
+            <div className="bg-slate-900 text-white p-2.5 rounded-xl text-xs font-mono font-bold text-center">
+              Target Pin: [GPS: {mapLat.toFixed(6)}, {mapLng.toFixed(6)}]
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-2">
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => {
-                  if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition((pos) => {
-                      setMapLat(pos.coords.latitude);
-                      setMapLng(pos.coords.longitude);
-                    }, () => {
-                      alert('Unable to retrieve your current location.');
-                    }, { enableHighAccuracy: true });
-                  }
+                  setMapLat(13.929931);
+                  setMapLng(75.568100);
                 }}
                 className="bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold py-3 rounded-xl transition cursor-pointer"
               >
-                🛰️ Recenter to My GPS
+                🔄 Reset to Shivamogga Center
               </button>
               <button
                 type="button"
@@ -368,7 +351,7 @@ export default function AdminAddFoodDish() {
                     onClick={handleOpenMapPicker}
                     className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition cursor-pointer shadow active:scale-95 flex items-center space-x-1"
                   >
-                    <span>🗺️ Pick Location on In-App Map</span>
+                    <span>🗺️ Pick Location on Map</span>
                   </button>
                 </div>
                 <input 
