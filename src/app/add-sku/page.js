@@ -22,8 +22,9 @@ export default function AdminAddFoodDish() {
   const [uploadingHotel, setUploadingHotel] = useState(false);
   const [uploadingPromo, setUploadingPromo] = useState(false);
   const [isPickingMap, setIsPickingMap] = useState(false);
-  const [mapLat, setMapLat] = useState(13.9299);
-  const [mapLng, setMapLng] = useState(75.5681);
+  // Default strictly to Shivamogga center coordinates
+  const [mapLat, setMapLat] = useState(13.929931);
+  const [mapLng, setMapLng] = useState(75.568100);
 
   // Fetch partner hotels directly from backend database
   useEffect(() => {
@@ -110,7 +111,7 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Open interactive map picker modal right inside the app without external redirects
+  // Open map picker and fetch actual device GPS or fallback to Shivamogga center
   const handleOpenMapPicker = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -230,7 +231,7 @@ export default function AdminAddFoodDish() {
   return (
     <div className="space-y-4 pb-6">
 
-      {/* Interactive In-App Map Picker Modal (Clickable to adjust location directly) */}
+      {/* Interactive In-App Map Picker Modal */}
       {isPickingMap && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-orange-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
@@ -240,16 +241,10 @@ export default function AdminAddFoodDish() {
             </div>
             
             <p className="text-xs text-slate-600">
-              Pan/Zoom the map below directly inside the app, or tap &quot;Recenter to My GPS&quot; while standing at the hotel.
+              Verify your exact latitude and longitude coordinates below, or tap &quot;Recenter to My GPS&quot; while standing at the hotel.
             </p>
 
-            <div 
-              className="w-full h-64 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner cursor-crosshair"
-              onClick={() => {
-                // Allows tapping on the map container to slightly nudge or capture coordinates interactively
-                setMapLat(prev => prev + 0.0001);
-              }}
-            >
+            <div className="w-full h-56 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
               <iframe
                 title="Google Maps Location Picker"
                 width="100%"
