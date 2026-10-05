@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 export default function AdminFoodCatalogManager() {
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedHotel, setSelectedHotel] = useState('ALL');
+  const [hotelSearchQuery, setHotelSearchQuery] = useState('');
   const [message, setMessage] = useState('');
 
   const fetchProducts = () => {
@@ -71,11 +73,24 @@ export default function AdminFoodCatalogManager() {
       });
   };
 
-  // Safe filtering with fallback to prevent undefined toLowerCase crashes
+  // Extract unique hotels list for hotel selection pills / search
+  const uniqueHotels = ['ALL', ...Array.from(new Set(products.map(p => p.hotelName).filter(Boolean)))];
+
+  // Filtered hotels based on hotel search query
+  const searchedHotels = uniqueHotels.filter(hotel => 
+    hotel === 'ALL' || hotel.toLowerCase().includes(hotelSearchQuery.toLowerCase())
+  );
+
+  // Advanced filtering supporting both hotel selection AND search query matching food names or hotel names
   const filteredProducts = products.filter(p => {
     const itemName = p.name || p.englishName || '';
-    const query = searchQuery || '';
-    return itemName.toLowerCase().includes(query.toLowerCase());
+    const hotelName = p.hotelName || '';
+    const query = searchQuery.toLowerCase().trim();
+
+    const matchesHotelTab = selectedHotel === 'ALL' || hotelName === selectedHotel;
+    const matchesSearchQuery = !query || itemName.toLowerCase().includes(query) || hotelName.toLowerCase().includes(query);
+
+    return matchesHotelTab && matchesSearchQuery;
   });
 
   return (
@@ -84,7 +99,7 @@ export default function AdminFoodCatalogManager() {
       {/* Header Info */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
         <h2 className="text-sm font-black text-slate-950">Food Catalog & Price Manager 🍱</h2>
-        <p className="text-[11px] text-slate-500">Edit dish prices directly and sync changes to customer view in real time.</p>
+        <p className="text-[11px] text-slate-500">Search and select a hotel first, then manage its dishes instantly.</p>
       </div>
 
       {message && (
@@ -93,23 +108,70 @@ export default function AdminFoodCatalogManager() {
         </div>
       )}
 
-      {/* Search Input */}
-      <div className="relative">
-        <input 
-          type="text" 
-          placeholder="Search food dishes..." 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-white border border-orange-100 text-slate-900 text-xs rounded-2xl p-3 pl-9 shadow-sm focus:outline-none focus:border-orange-500"
-        />
-        <span className="absolute left-3 top-3.5 text-orange-400">🔍</span>
+      {/* 🏨 Step 1: Search & Select Hotel */}
+      <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-3">
+        <div className="flex justify-between items-center">
+          <label className="text-[10px] font-black uppercase text-slate-400">Step 1: Search & Select Hotel</label>
+          {selectedHotel !== 'ALL' && (
+            <button
+              onClick={() => setSelectedHotel('ALL')}
+              className="text-[10px] font-bold text-orange-600 hover:text-orange-700 underline cursor-pointer"
+            >
+              Reset Selection (Show All)
+            </button>
+          )}
+        </div>
+
+        {/* Hotel Search Input */}
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Type hotel name to search..." 
+            value={hotelSearchQuery}
+            onChange={(e) => setHotelSearchQuery(e.target.value)}
+            className="w-full bg-orange-50/30 border border-orange-100 text-slate-900 text-xs rounded-2xl p-3 pl-9 shadow-sm focus:outline-none focus:border-orange-500"
+          />
+          <span className="absolute left-3 top-3.5 text-orange-400">🏨</span>
+        </div>
+
+        {/* Filtered Hotels List / Pills */}
+        <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          {searchedHotels.length === 0 ? (
+            <p className="text-[11px] text-slate-400 py-1">No hotels matching &quot;{hotelSearchQuery}&quot;</p>
+          ) : (
+            searchedHotels.map((hotel) => (
+              <button
+                key={hotel}
+                onClick={() => setSelectedHotel(hotel)}
+                className={`text-[11px] font-bold px-3 py-2 rounded-2xl border whitespace-nowrap transition cursor-pointer active:scale-95 ${selectedHotel === hotel ? 'bg-orange-500 text-white border-orange-500 shadow-sm' : 'bg-orange-50/50 text-slate-700 border-orange-100 hover:bg-orange-100'}`}
+              >
+                {hotel === 'ALL' ? '🏨 All Hotels' : `🏨 ${hotel}`}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* 🔍 Step 2: Search Food Dishes */}
+      <div className="space-y-1.5">
+        <label className="text-[10px] font-black uppercase text-slate-400 px-1">Step 2: Search Food Dishes in {selectedHotel === 'ALL' ? 'All Hotels' : selectedHotel}</label>
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Search specific food dishes..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white border border-orange-100 text-slate-900 text-xs rounded-2xl p-3 pl-9 shadow-sm focus:outline-none focus:border-orange-500"
+          />
+          <span className="absolute left-3 top-3.5 text-orange-400">🔍</span>
+        </div>
       </div>
 
       {/* Products List Feed */}
       <div className="space-y-3">
         {filteredProducts.length === 0 ? (
           <div className="bg-white border border-orange-100 p-8 rounded-2xl text-center text-slate-400 text-xs font-bold">
-            No food items found in the database. Add dishes from the &quot;Add Dish&quot; tab!
+            No food items found matching your hotel selection or search query.
           </div>
         ) : (
           filteredProducts.map((prod) => {

@@ -40,6 +40,14 @@ export default function AdminLiveOrders() {
       fetchOrders();
     });
 
+    socket.on('newOrder', () => {
+      fetchOrders();
+    });
+
+    socket.on('cateringOrderReceived', () => {
+      fetchOrders();
+    });
+
     return () => {
       socket.disconnect();
     };
@@ -53,7 +61,7 @@ export default function AdminLiveOrders() {
       return;
     }
 
-    // Optimistic UI update
+    // Instant permanent optimistic update so it locks immediately without bouncing back
     setOrders(prev => prev.map(o => ((o._id === orderId || o.id === orderId) ? { ...o, acceptedBy: deliveryPartnerName, status: 'Accepted' } : o)));
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
@@ -65,10 +73,12 @@ export default function AdminLiveOrders() {
     })
       .then(res => res.json())
       .then(data => {
-        if (!data || (data.success === false)) {
+        if (data && data.success === false) {
           alert('⚠️ Failed to lock order on server. Please try again.');
+          fetchOrders(); // Revert on actual server failure
+        } else {
+          fetchOrders();
         }
-        fetchOrders();
       })
       .catch((err) => {
         console.error('Failed to accept order:', err);
@@ -99,9 +109,12 @@ export default function AdminLiveOrders() {
       });
   };
 
-  const handleDeleteOrder = (orderId, acceptedBy) => {
-    if (acceptedBy) {
-      alert('⚠️ This order has already been accepted by a delivery partner and cannot be deleted!');
+  const handleDeleteOrder = (orderId) => {
+    // 10:00 PM onwards rule for everyone
+    const currentHour = new Date().getHours();
+
+    if (currentHour < 22) {
+      alert('⚠️ Deletion Locked: Orders can only be deleted from 10:00 PM (22:00) onwards!');
       return;
     }
 
@@ -122,8 +135,15 @@ export default function AdminLiveOrders() {
       });
   };
 
-  // Bulk delete all orders marked as delivered (progress === 100 or status === 'Delivered')
+  // Bulk delete all orders marked as delivered past 10 PM for everyone
   const handleClearDeliveredOrders = async () => {
+    const currentHour = new Date().getHours();
+
+    if (currentHour < 22) {
+      alert('⚠️ Deletion Locked: Delivered orders can only be cleared from 10:00 PM (22:00) onwards!');
+      return;
+    }
+
     const deliveredOrders = orders.filter(o => o.progress === 100 || o.status === 'Delivered');
     if (deliveredOrders.length === 0) {
       alert('No delivered orders found to clear.');
@@ -206,7 +226,7 @@ export default function AdminLiveOrders() {
             onClick={handleClearDeliveredOrders}
             className="text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 px-2.5 py-1 rounded-xl transition cursor-pointer active:scale-95 shadow-sm"
           >
-            🗑️ Clear Delivered ({deliveredCount})
+            🗑️ Clear Delivered ({deliveredCount}) [10 PM+]
           </button>
         )}
       </div>
@@ -216,7 +236,7 @@ export default function AdminLiveOrders() {
         {orders.length === 0 ? (
           <div className="bg-white border border-orange-100 p-8 rounded-3xl text-center space-y-2 shadow-sm">
             <p className="text-2xl">🎉</p>
-            <p className="text-xs font-bold text-slate-700">No active customer orders in the database right now.</p>
+            <p className="text-xs font-bold text-slate-700">No active customer orders or catering requests in the database right now.</p>
           </div>
         ) : (
           orders.map((ord, idx) => {
@@ -224,18 +244,29 @@ export default function AdminLiveOrders() {
             const displayTime = formatOrderDateTime(ord.createdAt || ord.time);
             const isAlreadyAccepted = Boolean(ord.acceptedBy);
 
+            // Clean full address in English (stripping GPS coordinates block if present for readable view)
+            const rawAddress = ord.address || ord.deliveryAddress || ord.location || 'Exact address not provided';
+            const cleanAddressEnglish = rawAddress.replace(/\[GPS:[^\]]+\]/g, '').trim();
+
             return (
               <div key={orderId || idx} className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-3 relative">
                 
                 {/* Top row: Order ID & Exact Date/Time */}
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col space-y-0.5">
-                    <span className="text-xs font-black font-mono text-orange-600">{orderId}</span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs font-black font-mono text-orange-600">{orderId}</span>
+                      {ord.isCatering && (
+                        <span className="bg-purple-100 text-purple-800 text-[9px] font-black px-1.5 py-0.5 rounded uppercase">
+                          Catering 🍲
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[10px] font-bold text-slate-500">📅 {displayTime}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-[9px] uppercase font-bold text-slate-400 mr-1">TOTAL</span>
-                    <span className="text-sm font-black text-orange-600 font-mono">₹{ord.totalPrice}</span>
+                    <span className="text-sm font-black text-orange-600 font-mono">₹{ord.totalPrice || ord.estimatedPrice || 0}</span>
                   </div>
                 </div>
 
@@ -263,19 +294,29 @@ export default function AdminLiveOrders() {
                   )}
                 </div>
 
-                {/* Customer Contact & GPS / Live Map Tracking Button */}
+                {/* Customer Contact & Full English Address / GPS Map Tracking */}
                 <div className="text-xs space-y-2 bg-orange-50/50 p-2.5 rounded-xl border border-orange-100">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-900">👤 {ord.customerName || 'Valued Customer'}</span>
-                    <a href={`tel:${ord.phone}`} className="text-[10px] text-orange-700 font-bold bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
-                      📞 {ord.phone || '9108626303'}
+                    <span className="font-bold text-slate-900">👤 {ord.customerName || ord.name || 'Valued Customer'}</span>
+                    <a href={`tel:${ord.phone || ord.mobile}`} className="text-[10px] text-orange-700 font-bold bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
+                      📞 {ord.phone || ord.mobile || 'Not provided'}
                     </a>
                   </div>
 
-                  <div className="flex justify-between items-center pt-1 border-t border-orange-200/50">
-                    <p className="text-[11px] text-slate-600 truncate max-w-[210px]">📍 {ord.address || '[GPS Location]'}</p>
+                  <div className="space-y-1 pt-1 border-t border-orange-200/50">
+                    <p className="text-[11px] font-semibold text-slate-800">
+                      📍 <span className="font-normal text-slate-600">{cleanAddressEnglish || 'Location address not specified'}</span>
+                    </p>
+                    {ord.area && (
+                      <p className="text-[10px] font-medium text-slate-500">
+                        🏙️ Locality / Area: <strong className="text-slate-700">{ord.area}</strong>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end pt-1">
                     <button
-                      onClick={() => handleOpenGoogleMaps(ord.address)}
+                      onClick={() => handleOpenGoogleMaps(rawAddress)}
                       className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-[10px] font-extrabold px-2.5 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1 shrink-0 active:scale-95 cursor-pointer"
                     >
                       <span>🗺️ Track Live Map</span>
@@ -328,8 +369,8 @@ export default function AdminLiveOrders() {
                   <div className="space-y-1">
                     {ord.items?.map((item, i) => (
                       <div key={i} className="flex justify-between items-center text-xs bg-orange-50/30 p-2 rounded-lg border border-orange-100">
-                        <span className="text-slate-800 font-medium">{item.name} <span className="text-slate-400 text-[10px]">({item.quantity} qty)</span></span>
-                        <span className="font-mono font-bold text-orange-600">₹{(item.price || 0) * (item.quantity || 1)}</span>
+                        <span className="text-slate-800 font-medium">{item.name} <span className="text-slate-400 text-[10px]">({item.quantity || item.qty} qty)</span></span>
+                        <span className="font-mono font-bold text-orange-600">₹{(item.price || 0) * (item.quantity || item.qty || 1)}</span>
                       </div>
                     ))}
 
@@ -343,14 +384,15 @@ export default function AdminLiveOrders() {
                   </div>
                 </div>
 
-                {/* Footer Payment Mode & Manual Delete Button */}
+                {/* Footer Payment Mode & 10 PM Time-Locked Delete Button for Everyone */}
                 <div className="flex justify-between items-center pt-2 text-[11px] border-t border-orange-100">
                   <span className="text-slate-500 font-medium">Payment: <strong className="text-slate-900">{ord.paymentMode || 'Online'}</strong> ({ord.paymentStatus || 'Paid'})</span>
                   <button 
-                    onClick={() => handleDeleteOrder(orderId, ord.acceptedBy)}
-                    className={`font-bold text-[10px] px-2.5 py-1 rounded-lg border transition cursor-pointer ${isAlreadyAccepted ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-rose-50 text-rose-600 hover:text-rose-700 border-rose-200 active:scale-95'}`}
+                    onClick={() => handleDeleteOrder(orderId)}
+                    className="font-bold text-[10px] px-2.5 py-1 rounded-lg border transition bg-rose-50 text-rose-600 hover:text-rose-700 border-rose-200 active:scale-95 cursor-pointer"
+                    title="Available from 10:00 PM onwards for everyone"
                   >
-                    {isAlreadyAccepted ? 'Locked (Accepted) 🔒' : 'Remove from DB ✕'}
+                    Remove from DB (10 PM+) ✕
                   </button>
                 </div>
 

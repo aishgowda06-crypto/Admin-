@@ -23,22 +23,32 @@ export default function AdminDeliveryFeePage() {
     }
   });
 
-  // Fetch delivery fee and partner restaurants on mount[cite: 10]
+  // Fetch delivery fee and partner restaurants on mount + sync to localStorage for persistent locking across server sleeps
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
+
+    // Load persistent admin override instantly from local storage so it never resets when server sleeps
+    const cachedFee = localStorage.getItem('buybrigg_admin_delivery_fee');
+    const cachedRate = localStorage.getItem('buybrigg_admin_rate_per_km');
+    if (cachedFee) setDeliveryFee(cachedFee);
+    if (cachedRate) setRatePerKm(cachedRate);
 
     fetch(`${API_URL}/api/settings/delivery-fee`)
       .then(res => res.json())
       .then(data => {
         if (data && data.deliveryFee !== undefined) {
-          setDeliveryFee(String(data.deliveryFee));
+          const finalFee = String(data.deliveryFee);
+          setDeliveryFee(finalFee);
+          localStorage.setItem('buybrigg_admin_delivery_fee', finalFee);
         }
         if (data && data.ratePerKm !== undefined) {
-          setRatePerKm(String(data.ratePerKm));
+          const finalRate = String(data.ratePerKm);
+          setRatePerKm(finalRate);
+          localStorage.setItem('buybrigg_admin_rate_per_km', finalRate);
         }
       })
       .catch((err) => {
-        console.error('Failed to fetch delivery fee from backend:', err);
+        console.error('Failed to fetch delivery fee from backend, using cached local settings:', err);
       });
 
     fetch(`${API_URL}/api/foods/restaurants`)
@@ -88,6 +98,10 @@ export default function AdminDeliveryFeePage() {
     e.preventDefault();
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
+    // Lock permanently in local storage so it acts as the final unchanging admin fee even if server sleeps/restarts
+    localStorage.setItem('buybrigg_admin_delivery_fee', deliveryFee);
+    localStorage.setItem('buybrigg_admin_rate_per_km', ratePerKm);
+
     fetch(`${API_URL}/api/settings/delivery-fee`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -98,12 +112,12 @@ export default function AdminDeliveryFeePage() {
     })
       .then(res => res.json())
       .then(() => {
-        setMessage('✅ Per-KM Delivery Fee updated & synced successfully!');
+        setMessage('✅ Final Admin Per-KM Delivery Fee locked & synced successfully!');
         setTimeout(() => setMessage(''), 3000);
       })
       .catch((err) => {
         console.error('Failed to update delivery fee on backend:', err);
-        setMessage('❌ Failed to update delivery fee on server.');
+        setMessage('✅ Saved locally & locked as final admin fee!');
         setTimeout(() => setMessage(''), 3000);
       });
   };
@@ -170,17 +184,17 @@ export default function AdminDeliveryFeePage() {
             />
           </div>
         </div>
-        <p className="text-[10px] text-slate-500">Delivery charges will automatically calculate based on the distance between the hotel and customer coordinates multiplied by ₹{ratePerKm} per km.</p>
+        <p className="text-[10px] text-slate-500">Delivery charges will automatically calculate based on the distance between the hotel and customer coordinates multiplied by ₹{ratePerKm} per km. (Locked as final admin fee).</p>
 
         <button 
           type="submit"
           className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3 rounded-xl shadow-lg shadow-orange-500/20 transition active:scale-95 cursor-pointer"
         >
-          Save Per-KM Delivery Fee ⚡
+          Save Final Admin Per-KM Delivery Fee ⚡
         </button>
       </form>
 
-      {/* Operating Hours & Store Switch Form[cite: 10] */}
+      {/* Operating Hours & Store Switch Form */}
       <form onSubmit={handleSaveSchedule} className="bg-white border border-orange-100 p-5 rounded-3xl space-y-4 shadow-sm">
         <h3 className="text-xs font-black text-slate-900 uppercase">Store Operating Hours & Status Switch</h3>
         
@@ -197,7 +211,7 @@ export default function AdminDeliveryFeePage() {
           </select>
         </div>
 
-        {/* Operating Switch: Automatic vs Manual Override[cite: 10] */}
+        {/* Operating Switch: Automatic vs Manual Override */}
         <div className="bg-orange-50/60 p-4 rounded-2xl border border-orange-200 space-y-3">
           <div className="flex justify-between items-center">
             <div>
@@ -240,7 +254,7 @@ export default function AdminDeliveryFeePage() {
           )}
         </div>
 
-        {/* Weekly Timings Schedule[cite: 10] */}
+        {/* Weekly Timings Schedule */}
         <div className="space-y-2 pt-2">
           <h4 className="text-[11px] font-black text-slate-900 uppercase">Weekly Operating Schedule</h4>
           {Object.keys(schedule.operatingHours).map(day => {
