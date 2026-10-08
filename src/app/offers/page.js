@@ -1,7 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function AdminOffersPage() {
+  const router = useRouter();
   const [offer, setOffer] = useState({
     tag: '',
     title: '',
@@ -12,27 +14,41 @@ export default function AdminOffersPage() {
   });
   const [saved, setSaved] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  
+  // Brand states
+  const [brandsList, setBrandsList] = useState([]);
+  const [brandName, setBrandName] = useState('');
+  const [brandLogo, setBrandLogo] = useState('');
+  const [uploadingBrandLogo, setUploadingBrandLogo] = useState(false);
+  const [submittingBrand, setSubmittingBrand] = useState(false);
 
-  // Fetch initial banner/offer data from backend[cite: 5]
-  useEffect(() => {
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
+  const fetchData = () => {
+    // Fetch banner/offer data
     fetch(`${API_URL}/api/offers`)
       .then(res => res.json())
       .then(data => {
         if (data) {
-          setOffer(prev => ({
-            ...prev,
-            ...data
-          }));
+          setOffer(prev => ({ ...prev, ...data }));
         }
       })
-      .catch((err) => {
-        console.error('Failed to fetch offer banner data:', err);
-      });
+      .catch(err => console.error('Failed to fetch offer banner data:', err));
+
+    // Fetch brands list
+    fetch(`${API_URL}/api/brands`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setBrandsList(data);
+      })
+      .catch(err => console.error('Failed to fetch brands:', err));
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
-  // Helper function to upload files directly from frontend to Cloudinary[cite: 5]
+  // Helper function for Cloudinary upload
   const uploadDirectToCloudinary = async (file) => {
     const cloudName = 'divin440';
     const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'shopmatries_preset';
@@ -54,12 +70,12 @@ export default function AdminOffersPage() {
       }
     } catch (err) {
       console.error('Cloudinary upload error:', err);
-      alert('Failed to upload media to Cloudinary.');
+      alert('Failed to upload image to Cloudinary.');
       return null;
     }
   };
 
-  // Handle direct file selection from device (Image or Video) and upload to Cloudinary[cite: 5]
+  // Handle banner media upload
   const handleMediaUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -77,11 +93,22 @@ export default function AdminOffersPage() {
     }
   };
 
-  const handleSave = (e) => {
-    e.preventDefault();
-    
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
+  // Handle brand logo upload
+  const handleBrandLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploadingBrandLogo(true);
+      const secureUrl = await uploadDirectToCloudinary(file);
+      if (secureUrl) {
+        setBrandLogo(secureUrl);
+      }
+      setUploadingBrandLogo(false);
+    }
+  };
 
+  // Save Banner Changes
+  const handleSaveBanner = (e) => {
+    e.preventDefault();
     fetch(`${API_URL}/api/offers`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -91,59 +118,81 @@ export default function AdminOffersPage() {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       })
-      .catch((err) => {
-        console.error('Failed to update offer banner on backend:', err);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+      .catch((err) => console.error('Failed to update offer banner:', err));
+  };
+
+  // Add New Brand
+  const handleAddBrand = async (e) => {
+    e.preventDefault();
+    if (!brandName.trim()) return alert('Please enter brand name');
+
+    setSubmittingBrand(true);
+    try {
+      const res = await fetch(`${API_URL}/api/brands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: brandName.trim(), logo: brandLogo.trim() })
       });
+
+      if (res.ok) {
+        alert('Brand added successfully!');
+        setBrandName('');
+        setBrandLogo('');
+        fetchData();
+      } else {
+        alert('Failed to add brand.');
+      }
+    } catch (err) {
+      console.error('Error adding brand:', err);
+    } finally {
+      setSubmittingBrand(false);
+    }
+  };
+
+  // Delete Brand
+  const handleDeleteBrand = async (id) => {
+    if (!confirm('Are you sure you want to delete this brand?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/brands/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('Brand deleted successfully!');
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Error deleting brand:', err);
+    }
   };
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-6 pb-12">
       
       {/* Live Preview Banner */}
       <div className="space-y-1">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Live Customer Banner Preview</p>
         <div className="relative border border-orange-100 p-4 rounded-2xl shadow-xl flex justify-between items-center text-white overflow-hidden bg-slate-900 min-h-[90px]">
-          
-          {/* Dynamic Background Media Layer */}
           {offer.bgMedia ? (
             offer.mediaType === 'video' ? (
-              <video 
-                autoPlay 
-                loop 
-                muted 
-                playsInline 
-                className="absolute inset-0 w-full h-full object-cover z-0 opacity-60"
-              >
+              <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0 opacity-60">
                 <source src={offer.bgMedia} />
               </video>
             ) : (
-              <div 
-                className="absolute inset-0 w-full h-full bg-cover bg-center z-0 opacity-50"
-                style={{ backgroundImage: `url(${offer.bgMedia})` }}
-              ></div>
+              <div className="absolute inset-0 w-full h-full bg-cover bg-center z-0 opacity-50" style={{ backgroundImage: `url(${offer.bgMedia})` }}></div>
             )
           ) : (
-            /* Default Gradient Fallback */
             <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-orange-950 to-slate-900 z-0"></div>
           )}
-
-          {/* Dark Overlay for text contrast */}
           <div className="absolute inset-0 bg-slate-950/40 z-0"></div>
 
-          {/* Banner Content */}
           <div className="z-10 space-y-1">
-            <span className="text-[9px] font-black uppercase bg-yellow-400 text-slate-950 px-2 py-0.5 rounded font-mono">{offer.tag}</span>
-            <h3 className="text-sm font-black tracking-tight">{offer.title}</h3>
-            <p className="text-[10px] text-slate-200">{offer.subtitle}</p>
+            <span className="text-[9px] font-black uppercase bg-yellow-400 text-slate-950 px-2 py-0.5 rounded font-mono">{offer.tag || 'OFFER'}</span>
+            <h3 className="text-sm font-black tracking-tight">{offer.title || 'Banner Title'}</h3>
+            <p className="text-[10px] text-slate-200">{offer.subtitle || 'Subtitle here'}</p>
           </div>
 
           <div className="z-10 text-center bg-slate-900/80 border border-orange-500/30 p-2 rounded-xl backdrop-blur-md">
             <span className="text-[9px] font-bold text-orange-400 uppercase block">Delivery</span>
             <span className="text-xs font-black">{offer.Delivery}</span>
           </div>
-
         </div>
       </div>
 
@@ -153,8 +202,8 @@ export default function AdminOffersPage() {
         </div>
       )}
 
-      {/* Edit Form */}
-      <form onSubmit={handleSave} className="bg-white border border-orange-100 p-4 rounded-3xl space-y-3 shadow-sm">
+      {/* Edit Banner Form */}
+      <form onSubmit={handleSaveBanner} className="bg-white border border-orange-100 p-4 rounded-3xl space-y-3 shadow-sm">
         <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Edit Customer Banner Offer</h2>
         
         <div className="space-y-1">
@@ -189,7 +238,6 @@ export default function AdminOffersPage() {
           />
         </div>
 
-        {/* Direct Device File Upload for Banner Background */}
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Upload Background Image or Video (From Device)</label>
           <input 
@@ -199,19 +247,90 @@ export default function AdminOffersPage() {
             className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer"
           />
         </div>
-
-        {uploadingMedia && (
-          <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading media to Cloudinary...</p>
-        )}
+        {uploadingMedia && <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading background media...</p>}
 
         <button 
           type="submit"
-          className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3 rounded-xl shadow-lg shadow-orange-500/20 transition active:scale-95 cursor-pointer"
+          className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3 rounded-xl shadow-lg transition active:scale-95 cursor-pointer"
         >
           Save Banner Changes ⚡
         </button>
-
       </form>
+
+      {/* NEW: Add Brand Form Section */}
+      <form onSubmit={handleAddBrand} className="bg-white border border-orange-200 p-4 rounded-3xl space-y-3 shadow-sm">
+        <h2 className="text-xs font-black text-slate-900">🏷️ Add New Featured Brand</h2>
+        
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-600">Brand Name *</label>
+          <input
+            type="text"
+            placeholder="e.g. Nandini, Domino's"
+            value={brandName}
+            onChange={(e) => setBrandName(e.target.value)}
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
+            required
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-600">Upload Brand Logo (Cloudinary)</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleBrandLogoUpload}
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer"
+          />
+          {uploadingBrandLogo && <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading brand logo to Cloudinary...</p>}
+          {brandLogo && (
+            <div className="flex items-center space-x-2 mt-2 bg-orange-50 p-2 rounded-xl border border-orange-100">
+              <img src={brandLogo} alt="Logo Preview" className="w-8 h-8 rounded-full object-cover" />
+              <span className="text-[9px] text-slate-500 truncate">{brandLogo}</span>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="submit"
+          disabled={submittingBrand || uploadingBrandLogo}
+          className="w-full bg-slate-900 hover:bg-black text-white text-xs font-black py-3 rounded-xl shadow transition cursor-pointer active:scale-95 disabled:opacity-50"
+        >
+          {submittingBrand ? 'Adding Brand...' : 'Save & Add Brand ➔'}
+        </button>
+      </form>
+
+      {/* Existing Brands List with Delete option */}
+      <div className="space-y-2.5">
+        <h3 className="text-xs font-black text-slate-900">📋 Manage Existing Brands ({brandsList.length})</h3>
+        {brandsList.map((brand) => {
+          const bId = brand._id || brand.id;
+          const bName = brand.name || brand.brandName;
+          const bLogo = brand.logo || brand.image;
+
+          return (
+            <div key={bId} className="bg-white border border-orange-200 rounded-2xl p-3 shadow-sm flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {bLogo ? (
+                  <img src={bLogo} alt={bName} className="w-10 h-10 rounded-full object-cover border border-orange-200" />
+                ) : (
+                  <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center font-black text-xs">🏷️</div>
+                )}
+                <div>
+                  <h4 className="text-xs font-black text-slate-900">{bName}</h4>
+                  <p className="text-[9px] text-emerald-700 font-bold">Active in Slider</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleDeleteBrand(bId)}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] px-3 py-1.5 rounded-xl transition cursor-pointer border border-rose-200 active:scale-95"
+              >
+                Delete 🗑️
+              </button>
+            </div>
+          );
+        })}
+      </div>
 
     </div>
   );

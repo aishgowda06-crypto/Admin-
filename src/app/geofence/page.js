@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from 'react';
 
 export default function AdminGeoFencePage() {
+  const [selectedCity, setSelectedCity] = useState('Shivamogga');
+  const [customCityInput, setCustomCityInput] = useState('');
   const [message, setMessage] = useState('');
   const [radiusKm, setRadiusKm] = useState(10);
   const [savedZone, setSavedZone] = useState(null);
@@ -9,38 +11,59 @@ export default function AdminGeoFencePage() {
   const mapRef = useRef(null);
   const circleRef = useRef(null);
 
+  const defaultCityCoords = {
+    Shivamogga: { lat: 13.9299, lng: 75.5681, radiusMeters: 10000 },
+    Bengaluru: { lat: 12.9716, lng: 77.5946, radiusMeters: 15000 },
+    Mysuru: { lat: 12.2958, lng: 76.6394, radiusMeters: 10000 },
+  };
+
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
-    // Fetch existing geo-fence settings from backend
-    fetch(`${API_URL}/api/settings/geofence`)
+    fetch(`${API_URL}/api/settings/geofence?city=${encodeURIComponent(selectedCity)}`)
       .then(res => res.json())
       .then(data => {
-        if (data && data.radiusMeters) {
-          const km = Math.round(data.radiusMeters / 1000);
-          setRadiusKm(km);
-          setSavedZone(data);
-          
-          // If map is already loaded, update circle/center
-          if (mapRef.current && window.google) {
-            updateMapCircle(data.centerLat, data.centerLng, data.radiusMeters);
-          }
+        const zone = data && data.radiusMeters ? data : {
+          centerLat: defaultCityCoords[selectedCity]?.lat || 13.9299,
+          centerLng: defaultCityCoords[selectedCity]?.lng || 75.5681,
+          radiusMeters: defaultCityCoords[selectedCity]?.radiusMeters || 10000,
+          city: selectedCity
+        };
+
+        const km = Math.round(zone.radiusMeters / 1000);
+        setRadiusKm(km);
+        setSavedZone(zone);
+        
+        if (mapRef.current && window.google) {
+          updateMapCircle(zone.centerLat, zone.centerLng, zone.radiusMeters);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        const preset = defaultCityCoords[selectedCity] || { lat: 13.9299, lng: 75.5681, radiusMeters: 10000 };
+        const zone = { centerLat: preset.lat, centerLng: preset.lng, radiusMeters: preset.radiusMeters, city: selectedCity };
+        setSavedZone(zone);
+        setRadiusKm(Math.round(preset.radiusMeters / 1000));
+        if (mapRef.current && window.google) {
+          updateMapCircle(preset.lat, preset.lng, preset.radiusMeters);
+        }
+      });
 
-    // Load Google Maps script with drawing library dynamically
     const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-    if (!window.google) {
+    const existingScript = document.getElementById('google-maps-script');
+
+    if (!window.google && !existingScript) {
       const script = document.createElement('script');
+      script.id = 'google-maps-script';
       script.src = `https://maps.googleapis.com/maps/api/js?key=${googleApiKey}&libraries=drawing`;
       script.async = true;
       script.onload = initMap;
       document.body.appendChild(script);
-    } else {
+    } else if (window.google && window.google.maps) {
       initMap();
+    } else if (existingScript) {
+      existingScript.addEventListener('load', initMap);
     }
-  }, []);
+  }, [selectedCity]);
 
   const updateMapCircle = (lat, lng, radiusMeters) => {
     if (!mapRef.current || !window.google) return;
@@ -64,7 +87,6 @@ export default function AdminGeoFencePage() {
         editable: true,
       });
 
-      // Listen to radius changes if dragged on map
       window.google.maps.event.addListener(circleRef.current, 'radius_changed', () => {
         const newRadius = circleRef.current.getRadius();
         setRadiusKm(parseFloat((newRadius / 1000).toFixed(1)));
@@ -79,19 +101,29 @@ export default function AdminGeoFencePage() {
   };
 
   const initMap = () => {
-    const defaultCenter = { lat: 13.9299, lng: 75.5681 }; // Shivamogga Hub
-    const map = new window.google.maps.Map(document.getElementById('admin-map-container'), {
+    const mapContainer = document.getElementById('admin-map-container');
+    if (!mapContainer || !window.google || !window.google.maps) return;
+
+    if (mapRef.current) {
+      if (savedZone) {
+        updateMapCircle(savedZone.centerLat, savedZone.centerLng, savedZone.radiusMeters);
+      }
+      return;
+    }
+
+    const preset = defaultCityCoords[selectedCity] || { lat: 13.9299, lng: 75.5681 };
+    const defaultCenter = { lat: preset.lat, lng: preset.lng };
+    
+    const map = new window.google.maps.Map(mapContainer, {
       center: defaultCenter,
       zoom: 13,
     });
     mapRef.current = map;
 
-    // If we already have a saved zone, render it
     if (savedZone) {
       updateMapCircle(savedZone.centerLat, savedZone.centerLng, savedZone.radiusMeters);
     }
 
-    // Create Drawing Manager for admin to draw delivery circle zone
     const drawingManager = new window.google.maps.drawing.DrawingManager({
       drawingMode: window.google.maps.drawing.OverlayType.CIRCLE,
       drawingControl: true,
@@ -110,16 +142,16 @@ export default function AdminGeoFencePage() {
     drawingManager.setMap(map);
 
     window.google.maps.event.addListener(drawingManager, 'circlecomplete', function(circle) {
-      // Remove previous drawn circle if exists
       if (circleRef.current && circleRef.current !== circle) {
         circleRef.current.setMap(null);
       }
       circleRef.current = circle;
 
       const center = circle.getCenter();
-      const radius = circle.getRadius(); // in meters
+      const radius = circle.getRadius();
 
       const zoneData = {
+        city: selectedCity,
         centerLat: center.lat(),
         centerLng: center.lng(),
         radiusMeters: radius
@@ -128,7 +160,6 @@ export default function AdminGeoFencePage() {
       setSavedZone(zoneData);
       setRadiusKm(parseFloat((radius / 1000).toFixed(1)));
 
-      // Listen to future adjustments on this new circle
       window.google.maps.event.addListener(circle, 'radius_changed', () => {
         const newRadius = circle.getRadius();
         setRadiusKm(parseFloat((newRadius / 1000).toFixed(1)));
@@ -142,22 +173,36 @@ export default function AdminGeoFencePage() {
     });
   };
 
-  // Handle direct manual KM input change
   const handleRadiusKmChange = (e) => {
     const val = parseFloat(e.target.value) || 0;
     setRadiusKm(val);
     const radiusMeters = val * 1000;
 
-    if (savedZone) {
-      const updated = { ...savedZone, radiusMeters };
-      setSavedZone(updated);
-      updateMapCircle(updated.centerLat, updated.centerLng, radiusMeters);
-    } else {
-      // Default to Shivamogga Hub if no zone drawn yet
-      const defaultCenter = { lat: 13.9299, lng: 75.5681 };
-      const updated = { centerLat: defaultCenter.lat, centerLng: defaultCenter.lng, radiusMeters };
-      setSavedZone(updated);
-      updateMapCircle(defaultCenter.lat, defaultCenter.lng, radiusMeters);
+    const preset = defaultCityCoords[selectedCity] || { lat: 13.9299, lng: 75.5681 };
+    const currentLat = savedZone?.centerLat || preset.lat;
+    const currentLng = savedZone?.centerLng || preset.lng;
+
+    const updated = { city: selectedCity, centerLat: currentLat, centerLng: currentLng, radiusMeters };
+    setSavedZone(updated);
+    updateMapCircle(currentLat, currentLng, radiusMeters);
+  };
+
+  const handleAddCustomCity = (e) => {
+    e.preventDefault();
+    if (!customCityInput.trim()) return;
+    const formattedCity = customCityInput.trim();
+    setSelectedCity(formattedCity);
+    setCustomCityInput('');
+
+    const defaultLat = 13.9299;
+    const defaultLng = 75.5681;
+    const defaultRadius = 10000;
+
+    setRadiusKm(10);
+    const newZone = { city: formattedCity, centerLat: defaultLat, centerLng: defaultLng, radiusMeters: defaultRadius };
+    setSavedZone(newZone);
+    if (mapRef.current && window.google) {
+      updateMapCircle(defaultLat, defaultLng, defaultRadius);
     }
   };
 
@@ -173,11 +218,11 @@ export default function AdminGeoFencePage() {
       const res = await fetch(`${API_URL}/api/settings/geofence`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(savedZone)
+        body: JSON.stringify({ ...savedZone, city: selectedCity })
       });
 
       if (res.ok) {
-        setMessage('✅ Geo-Fence Delivery Zone successfully saved & synced!');
+        setMessage(`✅ Geo-Fence Delivery Zone for ${selectedCity} successfully saved & synced!`);
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage('❌ Failed to save geo-fence zone to server.');
@@ -191,12 +236,47 @@ export default function AdminGeoFencePage() {
   };
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4 pb-6 max-w-md mx-auto">
       
-      {/* Header */}
-      <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
-        <h2 className="text-sm font-black text-slate-950">🗺️ Geo-Fence Delivery Zone Manager</h2>
-        <p className="text-[11px] text-slate-500">Draw a circular service boundary on the map or set exact kilometers. Customers outside this zone will be blocked from ordering.</p>
+      {/* Header & City Selection Card */}
+      <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-3">
+        <div>
+          <h2 className="text-sm font-black text-slate-950">🗺️ Multi-City Geo-Fence Manager</h2>
+          <p className="text-[11px] text-slate-500 mt-0.5">Configure delivery boundaries for each city to restrict hotel listings locally.</p>
+        </div>
+
+        <div className="space-y-2 pt-1 border-t border-orange-100">
+          <label className="text-[10px] font-bold text-slate-600 block">Select Active City</label>
+          <select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className="w-full bg-orange-50/50 border border-orange-200 text-xs font-bold text-slate-800 py-2.5 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400 cursor-pointer"
+          >
+            <option value="Shivamogga">Shivamogga</option>
+            <option value="Bengaluru">Bengaluru</option>
+            <option value="Mysuru">Mysuru</option>
+            {selectedCity && !['Shivamogga', 'Bengaluru', 'Mysuru'].includes(selectedCity) && (
+              <option value={selectedCity}>{selectedCity}</option>
+            )}
+          </select>
+
+          {/* Add Custom City Form */}
+          <form onSubmit={handleAddCustomCity} className="flex items-center space-x-2 pt-1">
+            <input
+              type="text"
+              placeholder="Or type new city name..."
+              value={customCityInput}
+              onChange={(e) => setCustomCityInput(e.target.value)}
+              className="w-full bg-orange-50/50 border border-orange-200 text-xs text-slate-800 px-3 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <button
+              type="submit"
+              className="bg-slate-900 hover:bg-black text-white text-xs font-bold px-4 py-2.5 rounded-xl transition cursor-pointer shrink-0 shadow-sm"
+            >
+              + Add
+            </button>
+          </form>
+        </div>
       </div>
 
       {message && (
@@ -205,41 +285,43 @@ export default function AdminGeoFencePage() {
         </div>
       )}
 
-      {/* Google Map Container */}
+      {/* Google Map Container Card */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-          <h3 className="text-xs font-black text-slate-900 uppercase">Draw or Set Service Range</h3>
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-xs font-black text-slate-900 uppercase">Boundary Zone</h3>
+            <p className="text-[10px] text-orange-600 font-bold">{selectedCity}</p>
+          </div>
           
-          {/* Direct KM Input Control */}
-          <div className="flex items-center space-x-2 bg-orange-50 px-3 py-1.5 rounded-2xl border border-orange-200">
-            <span className="text-[11px] font-bold text-orange-900">Radius (KM):</span>
+          <div className="flex items-center space-x-1.5 bg-orange-50 px-2.5 py-1.5 rounded-xl border border-orange-200">
+            <span className="text-[10px] font-bold text-slate-700">KM:</span>
             <input 
               type="number" 
               min="1" 
               max="100" 
               value={radiusKm} 
               onChange={handleRadiusKmChange}
-              className="w-16 bg-white border border-orange-300 text-center text-xs font-black py-1 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-14 bg-white border border-orange-300 text-center text-xs font-black py-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
         </div>
 
         <div 
           id="admin-map-container" 
-          className="w-full h-96 rounded-2xl overflow-hidden border border-orange-200 shadow-inner bg-slate-100"
+          className="w-full h-80 rounded-2xl overflow-hidden border border-orange-200 shadow-inner bg-slate-100"
         ></div>
 
-        <p className="text-[10px] text-slate-500">
-          💡 Tip: You can type your exact kilometer range above or use the circle tool on top of the map to draw your delivery boundary.
+        <p className="text-[10px] text-slate-500 text-center">
+          💡 Drag circle or update KM above to set boundary for {selectedCity}.
         </p>
       </div>
 
       {/* Save Button */}
       <button 
         onClick={handleSaveGeoFence}
-        className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-4 rounded-2xl shadow-xl transition active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
+        className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3.5 rounded-2xl shadow-lg shadow-orange-500/20 transition active:scale-95 cursor-pointer flex items-center justify-center space-x-2"
       >
-        <span>Save & Enforce Geo-Fence Zone ⚡</span>
+        <span>Save Geo-Fence for {selectedCity} ⚡</span>
       </button>
 
     </div>
