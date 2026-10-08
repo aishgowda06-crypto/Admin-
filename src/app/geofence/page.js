@@ -20,13 +20,15 @@ export default function AdminGeoFencePage() {
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
+    // Fetch the specific geofence zone for the selected city
     fetch(`${API_URL}/api/settings/geofence?city=${encodeURIComponent(selectedCity)}`)
       .then(res => res.json())
       .then(data => {
+        const preset = defaultCityCoords[selectedCity] || { lat: 13.9299, lng: 75.5681, radiusMeters: 10000 };
         const zone = data && data.radiusMeters ? data : {
-          centerLat: defaultCityCoords[selectedCity]?.lat || 13.9299,
-          centerLng: defaultCityCoords[selectedCity]?.lng || 75.5681,
-          radiusMeters: defaultCityCoords[selectedCity]?.radiusMeters || 10000,
+          centerLat: preset.lat,
+          centerLng: preset.lng,
+          radiusMeters: preset.radiusMeters,
           city: selectedCity
         };
 
@@ -222,7 +224,7 @@ export default function AdminGeoFencePage() {
       });
 
       if (res.ok) {
-        setMessage(`✅ Geo-Fence Delivery Zone for ${selectedCity} successfully saved & synced!`);
+        setMessage(`✅ Geo-Fence Delivery Zone for ${selectedCity} successfully saved & synced independently!`);
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage('❌ Failed to save geo-fence zone to server.');
@@ -242,7 +244,7 @@ export default function AdminGeoFencePage() {
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-3">
         <div>
           <h2 className="text-sm font-black text-slate-950">🗺️ Multi-City Geo-Fence Manager</h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">Configure delivery boundaries for each city to restrict hotel listings locally.</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">Configure independent delivery boundaries for each city to restrict hotel listings locally.</p>
         </div>
 
         <div className="space-y-2 pt-1 border-t border-orange-100">
