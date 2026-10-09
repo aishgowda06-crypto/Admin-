@@ -22,11 +22,10 @@ export default function AdminAddFoodDish() {
   const [uploadingHotel, setUploadingHotel] = useState(false);
   const [uploadingPromo, setUploadingPromo] = useState(false);
   const [isPickingMap, setIsPickingMap] = useState(false);
-  // Default strictly to Shivamogga center coordinates
-  const [mapLat, setMapLat] = useState(13.929931);
-  const [mapLng, setMapLng] = useState(75.568100);
+  const [mapLat, setMapLat] = useState(13.9299);
+  const [mapLng, setMapLng] = useState(75.5681);
 
-  // Fetch partner hotels directly from backend database
+  // Fetch partner hotels directly from backend database[cite: 6]
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -43,7 +42,7 @@ export default function AdminAddFoodDish() {
       });
   }, []);
 
-  // Helper function to upload files directly from frontend to Cloudinary
+  // Helper function to upload files directly from frontend to Cloudinary[cite: 6]
   const uploadDirectToCloudinary = async (file) => {
     const cloudName = 'divin440';
     const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'shopmatries_preset';
@@ -111,17 +110,31 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Open map picker modal
+  // Open interactive Google Maps Picker Modal[cite: 6]
   const handleOpenMapPicker = () => {
-    setIsPickingMap(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setMapLat(position.coords.latitude);
+          setMapLng(position.coords.longitude);
+          setIsPickingMap(true);
+        },
+        () => {
+          setIsPickingMap(true); // Default to Shivamogga Hub if permission denied[cite: 6]
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    } else {
+      setIsPickingMap(true);
+    }
   };
 
-  // Confirm and set exact coordinates picked from map
+  // Confirm and set coordinates picked from map[cite: 6]
   const handleConfirmMapLocation = () => {
     const coordsStr = `[GPS: ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}]`;
     setFormData(prev => ({ ...prev, hotelLocation: coordsStr }));
     setIsPickingMap(false);
-    alert(`✓ Exact Hotel Location Confirmed & Saved: ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}`);
+    alert(`✓ Hotel Location Confirmed & Saved: ${mapLat.toFixed(4)}, ${mapLng.toFixed(4)}`);
   };
 
   const handleSubmit = async (e) => {
@@ -131,18 +144,25 @@ export default function AdminAddFoodDish() {
     let finalHotelId = formData.hotelId;
     let finalHotelImage = formData.hotelImage;
     let finalHotelLocation = formData.hotelLocation || 'Shivamogga Hub';
+    
+    // Automatically retrieve the active city to ensure proper geofence filtering
+    const activeCity = typeof window !== 'undefined' ? (localStorage.getItem('shopmatries_city') || 'Shivamogga') : 'Shivamogga';
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
     try {
       if (formData.hotelId === 'new') {
         const newHotelName = formData.hotelNameInput.trim() || 'New Partner Hotel';
         
+        // Include city, latitude, and longitude for the new restaurant
         const hotelRes = await fetch(`${API_URL}/api/foods/restaurants`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             name: newHotelName, 
             address: finalHotelLocation,
+            city: activeCity,
+            lat: mapLat,
+            lng: mapLng,
             image: formData.hotelImage 
           })
         });
@@ -164,6 +184,7 @@ export default function AdminAddFoodDish() {
         }
       }
 
+      // Include the active city in the food item payload
       const foodPayload = {
         kannadaName: formData.kannadaName,
         englishName: formData.englishName,
@@ -172,6 +193,7 @@ export default function AdminAddFoodDish() {
         hotelName: finalHotelName,
         hotelImage: finalHotelImage, 
         address: finalHotelLocation,
+        city: activeCity,
         price: formData.price,
         image: formData.image,
         rating: formData.rating
@@ -185,6 +207,7 @@ export default function AdminAddFoodDish() {
       
       const foodData = await foodRes.json();
 
+      // Submit promotional video or banner data to offers endpoint if provided[cite: 6]
       if (formData.promoMedia) {
         await fetch(`${API_URL}/api/offers`, {
           method: 'POST',
@@ -200,7 +223,7 @@ export default function AdminAddFoodDish() {
       }
 
       if (foodRes.ok && foodData.success) {
-        setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu!`);
+        setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu in ${activeCity}!`);
         setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', hotelLocation: '', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
         setTimeout(() => setMessage(''), 3000);
       } else {
@@ -217,84 +240,62 @@ export default function AdminAddFoodDish() {
   return (
     <div className="space-y-4 pb-6">
 
-      {/* Interactive In-App Map Picker Modal */}
+      {/* Interactive Google Maps Picker Modal[cite: 6] */}
       {isPickingMap && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-orange-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="text-sm font-black text-slate-950">🗺️ Exact Hotel Location Finder (Home Admin)</h3>
+              <h3 className="text-sm font-black text-slate-950">🗺️ Pick Hotel Location on Google Maps</h3>
               <button onClick={() => setIsPickingMap(false)} className="text-slate-400 hover:text-slate-700 font-bold text-xs cursor-pointer">✕ Close</button>
             </div>
             
-            <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl space-y-1 text-xs text-orange-900">
-              <p className="font-bold">💡 How to get exact coordinates from home:</p>
-              <p className="text-[11px] text-slate-700">1. Open Google Maps in a separate browser tab.</p>
-              <p className="text-[11px] text-slate-700">2. Right-click on the hotel in Shivamogga and click <b>&quot;What&apos;s here?&quot;</b></p>
-              <p className="text-[11px] text-slate-700">3. Copy the latitude & longitude numbers from the bottom card and paste them below.</p>
-            </div>
+            <p className="text-xs text-slate-600">
+              Drag or use the interactive map below to pinpoint the exact location of the hotel. Click confirm once pinned.
+            </p>
 
-            <div className="w-full h-44 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
+            <div className="w-full h-64 rounded-2xl overflow-hidden border border-orange-200 relative shadow-inner">
               <iframe
                 title="Google Maps Location Picker"
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
                 loading="lazy"
-                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=16&output=embed`}
+                src={`https://maps.google.com/maps?q=${mapLat},${mapLng}&z=15&output=embed`}
               ></iframe>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-700">Latitude</label>
-                <input 
-                  type="number"
-                  step="0.000001"
-                  value={mapLat}
-                  onChange={(e) => setMapLat(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-orange-50 border border-orange-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-700">Longitude</label>
-                <input 
-                  type="number"
-                  step="0.000001"
-                  value={mapLng}
-                  onChange={(e) => setMapLng(parseFloat(e.target.value) || 0)}
-                  className="w-full bg-orange-50 border border-orange-200 rounded-xl p-2 text-xs font-mono font-bold text-slate-800"
-                />
-              </div>
+            <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 text-xs font-mono font-bold text-orange-900 text-center">
+              Pinned Coordinates: {mapLat.toFixed(5)}, {mapLng.toFixed(5)}
             </div>
 
-            <div className="bg-slate-900 text-white p-2.5 rounded-xl text-xs font-mono font-bold text-center">
-              Target Pin: [GPS: {mapLat.toFixed(6)}, {mapLng.toFixed(6)}]
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => {
-                  setMapLat(13.929931);
-                  setMapLng(75.568100);
+                  if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((pos) => {
+                      setMapLat(pos.coords.latitude);
+                      setMapLng(pos.coords.longitude);
+                    });
+                  }
                 }}
                 className="bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold py-3 rounded-xl transition cursor-pointer"
               >
-                🔄 Reset to Shivamogga Center
+                🛰️ Recenter to My GPS
               </button>
               <button
                 type="button"
                 onClick={handleConfirmMapLocation}
                 className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-xs font-black py-3 rounded-xl shadow transition cursor-pointer active:scale-95"
               >
-                Confirm Hotel GPS ✓
+                Confirm Hotel Location ✓
               </button>
             </div>
           </div>
         </div>
       )}
       
-      {/* Header Banner */}
+      {/* Header Banner[cite: 6] */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
         <h2 className="text-sm font-black text-slate-950">Add Food Dish & Hotel Location (ಹೊಸ ಆಹಾರ ಮತ್ತು ಹೋಟೆಲ್ ಸ್ಥಳ ಸೇರಿಸಿ)</h2>
         <p className="text-[11px] text-slate-500">Manage menu dishes, ratings, hotel logos, exact map location picker, and promotions.</p>
@@ -306,10 +307,10 @@ export default function AdminAddFoodDish() {
         </div>
       )}
 
-      {/* Form Container */}
+      {/* Form Container[cite: 6] */}
       <form onSubmit={handleSubmit} className="bg-white border border-orange-100 p-5 rounded-3xl shadow-sm space-y-3">
         
-        {/* Hotel Selector / Creator */}
+        {/* Hotel Selector / Creator[cite: 6] */}
         <div className="space-y-2">
           <label className="text-[10px] font-bold text-slate-600 uppercase">Select or Add Hotel *</label>
           <select 
@@ -342,27 +343,27 @@ export default function AdminAddFoodDish() {
                 />
               </div>
 
-              {/* Exact In-App Google Maps Hotel Location Picker */}
+              {/* Interactive Google Maps Hotel Location Picker[cite: 6] */}
               <div className="space-y-1 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
                 <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-black text-orange-900 uppercase">📍 Exact Hotel GPS Location</label>
+                  <label className="text-[10px] font-black text-orange-900 uppercase">📍 Hotel Location (Google Maps Picker)</label>
                   <button 
                     type="button"
                     onClick={handleOpenMapPicker}
                     className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition cursor-pointer shadow active:scale-95 flex items-center space-x-1"
                   >
-                    <span>🗺️ Pick Location on Map</span>
+                    <span>🗺️ Choose Hotel Location on Maps</span>
                   </button>
                 </div>
                 <input 
                   type="text"
-                  placeholder="[GPS: latitude, longitude]"
+                  placeholder="Click above to select exact hotel location on maps"
                   value={formData.hotelLocation}
                   onChange={(e) => setFormData({ ...formData, hotelLocation: e.target.value })}
                   className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:outline-none font-mono font-medium mt-1"
                   required
                 />
-                <p className="text-[9px] text-slate-500">This exact GPS format is required for precise per-kilometer delivery fee calculations.</p>
+                <p className="text-[9px] text-slate-500">This exact pinned location is used to calculate precise customer delivery distances and fees.</p>
               </div>
 
               <div className="space-y-1">
@@ -459,7 +460,7 @@ export default function AdminAddFoodDish() {
           </div>
         </div>
 
-        {/* Food Dish Image Upload Option */}
+        {/* Food Dish Image Upload Option[cite: 6] */}
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Food Dish Image Upload (ಆಹಾರದ ಚಿತ್ರ) *</label>
           <input 
@@ -481,7 +482,7 @@ export default function AdminAddFoodDish() {
           </div>
         )}
 
-        {/* PROMOTIONAL VIDEO / BANNER SECTION */}
+        {/* PROMOTIONAL VIDEO / BANNER SECTION[cite: 6] */}
         <div className="space-y-2 pt-3 border-t border-orange-100">
           <div className="flex justify-between items-center">
             <label className="text-[10px] font-bold text-orange-900 uppercase">🎬 Promotional Video / Banner (Optional)</label>
