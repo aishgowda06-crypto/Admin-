@@ -11,6 +11,9 @@ export default function AdminAddFoodDish() {
     hotelNameInput: '', 
     hotelImage: '',     
     hotelLocation: '',   // Hotel exact address or Google Maps coordinates
+    hotelCity: 'Shivamogga', // Manual city selection input
+    manualLat: '13.9299',    // Manual latitude input
+    manualLng: '75.5681',    // Manual longitude input
     price: '',
     image: '',          
     rating: '4.8',
@@ -120,7 +123,7 @@ export default function AdminAddFoodDish() {
           setIsPickingMap(true);
         },
         () => {
-          setIsPickingMap(true); // Default to Shivamogga Hub if permission denied
+          setIsPickingMap(true);
         },
         { timeout: 10000, enableHighAccuracy: true }
       );
@@ -132,7 +135,12 @@ export default function AdminAddFoodDish() {
   // Confirm and set coordinates picked from map
   const handleConfirmMapLocation = () => {
     const coordsStr = `[GPS: ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}]`;
-    setFormData(prev => ({ ...prev, hotelLocation: coordsStr }));
+    setFormData(prev => ({ 
+      ...prev, 
+      hotelLocation: coordsStr,
+      manualLat: mapLat.toString(),
+      manualLng: mapLng.toString()
+    }));
     setIsPickingMap(false);
     alert(`✓ Hotel Location Confirmed & Saved: ${mapLat.toFixed(4)}, ${mapLng.toFixed(4)}`);
   };
@@ -143,26 +151,28 @@ export default function AdminAddFoodDish() {
     let finalHotelName = 'Partner Hotel';
     let finalHotelId = formData.hotelId;
     let finalHotelImage = formData.hotelImage;
-    let finalHotelLocation = formData.hotelLocation || 'Shivamogga Hub';
+    let finalHotelLocation = formData.hotelLocation || `[GPS: ${formData.manualLat}, ${formData.manualLng}]`;
     
-    // Automatically retrieve active city from localStorage for geofencing
-    const activeCity = typeof window !== 'undefined' ? (localStorage.getItem('shopmatries_city') || 'Shivamogga') : 'Shivamogga';
+    const targetCity = formData.hotelCity.trim() || 'Shivamogga';
+    const finalLat = parseFloat(formData.manualLat) || 13.9299;
+    const finalLng = parseFloat(formData.manualLng) || 75.5681;
+
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
     try {
       if (formData.hotelId === 'new') {
         const newHotelName = formData.hotelNameInput.trim() || 'New Partner Hotel';
         
-        // Send city, numeric latitude, and numeric longitude to backend
+        // Send manually entered or mapped city, lat, and lng to backend
         const hotelRes = await fetch(`${API_URL}/api/foods/restaurants`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             name: newHotelName, 
             address: finalHotelLocation,
-            city: activeCity,
-            lat: mapLat,
-            lng: mapLng,
+            city: targetCity,
+            lat: finalLat,
+            lng: finalLng,
             image: formData.hotelImage 
           })
         });
@@ -184,7 +194,7 @@ export default function AdminAddFoodDish() {
         }
       }
 
-      // Include active city in the food payload
+      // Include manual city in the food payload
       const foodPayload = {
         kannadaName: formData.kannadaName,
         englishName: formData.englishName,
@@ -193,7 +203,7 @@ export default function AdminAddFoodDish() {
         hotelName: finalHotelName,
         hotelImage: finalHotelImage, 
         address: finalHotelLocation,
-        city: activeCity,
+        city: targetCity,
         price: formData.price,
         image: formData.image,
         rating: formData.rating
@@ -223,8 +233,8 @@ export default function AdminAddFoodDish() {
       }
 
       if (foodRes.ok && (foodData.success || foodData.item)) {
-        setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu in ${activeCity}!`);
-        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', hotelLocation: '', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
+        setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu in ${targetCity}!`);
+        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', hotelLocation: '', hotelCity: 'Shivamogga', manualLat: '13.9299', manualLng: '75.5681', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage(`❌ ${foodData.error || 'Failed to add dish to backend catalog.'}`);
@@ -343,27 +353,48 @@ export default function AdminAddFoodDish() {
                 />
               </div>
 
-              {/* Interactive Google Maps Hotel Location Picker */}
-              <div className="space-y-1 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
-                <div className="flex justify-between items-center">
-                  <label className="text-[10px] font-black text-orange-900 uppercase">📍 Hotel Location (Google Maps Picker)</label>
+              {/* Manual City Name & Lat/Lng Inputs */}
+              <div className="grid grid-cols-3 gap-2 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
+                <div className="col-span-3">
+                  <label className="text-[10px] font-black text-orange-900 uppercase">🏙️ City Name (Region Zone)</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. Shivamogga, Bengaluru, Mysuru"
+                    value={formData.hotelCity}
+                    onChange={(e) => setFormData({ ...formData, hotelCity: e.target.value })}
+                    className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:outline-none font-bold mt-1"
+                    required
+                  />
+                </div>
+                <div className="col-span-1">
+                  <label className="text-[9px] font-bold text-slate-700 uppercase">Latitude</label>
+                  <input 
+                    type="text"
+                    value={formData.manualLat}
+                    onChange={(e) => setFormData({ ...formData, manualLat: e.target.value })}
+                    className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2 font-mono mt-0.5"
+                    required
+                  />
+                </div>
+                <div className="col-span-1">
+                  <label className="text-[9px] font-bold text-slate-700 uppercase">Longitude</label>
+                  <input 
+                    type="text"
+                    value={formData.manualLng}
+                    onChange={(e) => setFormData({ ...formData, manualLng: e.target.value })}
+                    className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2 font-mono mt-0.5"
+                    required
+                  />
+                </div>
+                <div className="col-span-1 flex items-end">
                   <button 
                     type="button"
                     onClick={handleOpenMapPicker}
-                    className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition cursor-pointer shadow active:scale-95 flex items-center space-x-1"
+                    className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] font-bold py-2 rounded-xl transition cursor-pointer shadow active:scale-95"
                   >
-                    <span>🗺️ Choose Hotel Location on Maps</span>
+                    🗺️ Pick Map
                   </button>
                 </div>
-                <input 
-                  type="text"
-                  placeholder="Click above to select exact hotel location on maps"
-                  value={formData.hotelLocation}
-                  onChange={(e) => setFormData({ ...formData, hotelLocation: e.target.value })}
-                  className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:outline-none font-mono font-medium mt-1"
-                  required
-                />
-                <p className="text-[9px] text-slate-500">This exact pinned location is used to calculate precise customer delivery distances and fees.</p>
               </div>
 
               <div className="space-y-1">
