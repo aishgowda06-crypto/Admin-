@@ -25,7 +25,7 @@ export default function AdminAddFoodDish() {
   const [mapLat, setMapLat] = useState(13.9299);
   const [mapLng, setMapLng] = useState(75.5681);
 
-  // Fetch partner hotels directly from backend database[cite: 6]
+  // Fetch partner hotels directly from backend database
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -42,7 +42,7 @@ export default function AdminAddFoodDish() {
       });
   }, []);
 
-  // Helper function to upload files directly from frontend to Cloudinary[cite: 6]
+  // Helper function to upload files directly from frontend to Cloudinary
   const uploadDirectToCloudinary = async (file) => {
     const cloudName = 'divin440';
     const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'shopmatries_preset';
@@ -110,7 +110,7 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Open interactive Google Maps Picker Modal[cite: 6]
+  // Open interactive Google Maps Picker Modal
   const handleOpenMapPicker = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -120,7 +120,7 @@ export default function AdminAddFoodDish() {
           setIsPickingMap(true);
         },
         () => {
-          setIsPickingMap(true); // Default to Shivamogga Hub if permission denied[cite: 6]
+          setIsPickingMap(true); // Default to Shivamogga Hub if permission denied
         },
         { timeout: 10000, enableHighAccuracy: true }
       );
@@ -129,7 +129,7 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Confirm and set coordinates picked from map[cite: 6]
+  // Confirm and set coordinates picked from map
   const handleConfirmMapLocation = () => {
     const coordsStr = `[GPS: ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}]`;
     setFormData(prev => ({ ...prev, hotelLocation: coordsStr }));
@@ -145,7 +145,7 @@ export default function AdminAddFoodDish() {
     let finalHotelImage = formData.hotelImage;
     let finalHotelLocation = formData.hotelLocation || 'Shivamogga Hub';
     
-    // Automatically retrieve the active city to ensure proper geofence filtering
+    // Automatically retrieve active city from localStorage for geofencing
     const activeCity = typeof window !== 'undefined' ? (localStorage.getItem('shopmatries_city') || 'Shivamogga') : 'Shivamogga';
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -153,7 +153,7 @@ export default function AdminAddFoodDish() {
       if (formData.hotelId === 'new') {
         const newHotelName = formData.hotelNameInput.trim() || 'New Partner Hotel';
         
-        // Include city, latitude, and longitude for the new restaurant
+        // Send city, numeric latitude, and numeric longitude to backend
         const hotelRes = await fetch(`${API_URL}/api/foods/restaurants`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -184,7 +184,7 @@ export default function AdminAddFoodDish() {
         }
       }
 
-      // Include the active city in the food item payload
+      // Include active city in the food payload
       const foodPayload = {
         kannadaName: formData.kannadaName,
         englishName: formData.englishName,
@@ -207,7 +207,7 @@ export default function AdminAddFoodDish() {
       
       const foodData = await foodRes.json();
 
-      // Submit promotional video or banner data to offers endpoint if provided[cite: 6]
+      // Submit promotional video or banner data to offers endpoint if provided
       if (formData.promoMedia) {
         await fetch(`${API_URL}/api/offers`, {
           method: 'POST',
@@ -222,7 +222,7 @@ export default function AdminAddFoodDish() {
         }).catch(() => {});
       }
 
-      if (foodRes.ok && foodData.success) {
+      if (foodRes.ok && (foodData.success || foodData.item)) {
         setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu in ${activeCity}!`);
         setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', hotelLocation: '', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
         setTimeout(() => setMessage(''), 3000);
@@ -240,7 +240,7 @@ export default function AdminAddFoodDish() {
   return (
     <div className="space-y-4 pb-6">
 
-      {/* Interactive Google Maps Picker Modal[cite: 6] */}
+      {/* Interactive Google Maps Picker Modal */}
       {isPickingMap && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-orange-200 rounded-3xl p-5 max-w-lg w-full space-y-4 shadow-2xl">
@@ -295,7 +295,7 @@ export default function AdminAddFoodDish() {
         </div>
       )}
       
-      {/* Header Banner[cite: 6] */}
+      {/* Header Banner */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
         <h2 className="text-sm font-black text-slate-950">Add Food Dish & Hotel Location (ಹೊಸ ಆಹಾರ ಮತ್ತು ಹೋಟೆಲ್ ಸ್ಥಳ ಸೇರಿಸಿ)</h2>
         <p className="text-[11px] text-slate-500">Manage menu dishes, ratings, hotel logos, exact map location picker, and promotions.</p>
@@ -307,10 +307,10 @@ export default function AdminAddFoodDish() {
         </div>
       )}
 
-      {/* Form Container[cite: 6] */}
+      {/* Form Container */}
       <form onSubmit={handleSubmit} className="bg-white border border-orange-100 p-5 rounded-3xl shadow-sm space-y-3">
         
-        {/* Hotel Selector / Creator[cite: 6] */}
+        {/* Hotel Selector / Creator */}
         <div className="space-y-2">
           <label className="text-[10px] font-bold text-slate-600 uppercase">Select or Add Hotel *</label>
           <select 
@@ -343,7 +343,7 @@ export default function AdminAddFoodDish() {
                 />
               </div>
 
-              {/* Interactive Google Maps Hotel Location Picker[cite: 6] */}
+              {/* Interactive Google Maps Hotel Location Picker */}
               <div className="space-y-1 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
                 <div className="flex justify-between items-center">
                   <label className="text-[10px] font-black text-orange-900 uppercase">📍 Hotel Location (Google Maps Picker)</label>
@@ -460,7 +460,7 @@ export default function AdminAddFoodDish() {
           </div>
         </div>
 
-        {/* Food Dish Image Upload Option[cite: 6] */}
+        {/* Food Dish Image Upload Option */}
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Food Dish Image Upload (ಆಹಾರದ ಚಿತ್ರ) *</label>
           <input 
@@ -482,7 +482,7 @@ export default function AdminAddFoodDish() {
           </div>
         )}
 
-        {/* PROMOTIONAL VIDEO / BANNER SECTION[cite: 6] */}
+        {/* PROMOTIONAL VIDEO / BANNER SECTION */}
         <div className="space-y-2 pt-3 border-t border-orange-100">
           <div className="flex justify-between items-center">
             <label className="text-[10px] font-bold text-orange-900 uppercase">🎬 Promotional Video / Banner (Optional)</label>
