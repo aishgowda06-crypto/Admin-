@@ -17,10 +17,6 @@ export default function AdminOffersPage() {
   
   // Brand states
   const [brandsList, setBrandsList] = useState([]);
-  const [brandName, setBrandName] = useState('');
-  const [brandLogo, setBrandLogo] = useState('');
-  const [uploadingBrandLogo, setUploadingBrandLogo] = useState(false);
-  const [submittingBrand, setSubmittingBrand] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -93,19 +89,6 @@ export default function AdminOffersPage() {
     }
   };
 
-  // Handle brand logo upload
-  const handleBrandLogoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setUploadingBrandLogo(true);
-      const secureUrl = await uploadDirectToCloudinary(file);
-      if (secureUrl) {
-        setBrandLogo(secureUrl);
-      }
-      setUploadingBrandLogo(false);
-    }
-  };
-
   // Save Banner Changes
   const handleSaveBanner = (e) => {
     e.preventDefault();
@@ -119,34 +102,6 @@ export default function AdminOffersPage() {
         setTimeout(() => setSaved(false), 3000);
       })
       .catch((err) => console.error('Failed to update offer banner:', err));
-  };
-
-  // Add New Brand
-  const handleAddBrand = async (e) => {
-    e.preventDefault();
-    if (!brandName.trim()) return alert('Please enter brand name');
-
-    setSubmittingBrand(true);
-    try {
-      const res = await fetch(`${API_URL}/api/brands`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: brandName.trim(), logo: brandLogo.trim() })
-      });
-
-      if (res.ok) {
-        alert('Brand added successfully!');
-        setBrandName('');
-        setBrandLogo('');
-        fetchData();
-      } else {
-        alert('Failed to add brand.');
-      }
-    } catch (err) {
-      console.error('Error adding brand:', err);
-    } finally {
-      setSubmittingBrand(false);
-    }
   };
 
   // Delete Brand
@@ -257,51 +212,23 @@ export default function AdminOffersPage() {
         </button>
       </form>
 
-      {/* NEW: Add Brand Form Section */}
-      <form onSubmit={handleAddBrand} className="bg-white border border-orange-200 p-4 rounded-3xl space-y-3 shadow-sm">
-        <h2 className="text-xs font-black text-slate-900">🏷️ Add New Featured Brand</h2>
-        
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-600">Brand Name *</label>
-          <input
-            type="text"
-            placeholder="e.g. Nandini, Domino's"
-            value={brandName}
-            onChange={(e) => setBrandName(e.target.value)}
-            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
-            required
-          />
+      {/* Navigation Button to Brands Page */}
+      <div className="bg-white border border-orange-100 p-4 rounded-3xl flex justify-between items-center shadow-sm">
+        <div>
+          <h3 className="text-xs font-black text-slate-900">🏷️ Brand Management</h3>
+          <p className="text-[10px] text-slate-500">Manage brands and add food items directly.</p>
         </div>
-
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-600">Upload Brand Logo (Cloudinary)</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleBrandLogoUpload}
-            className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer"
-          />
-          {uploadingBrandLogo && <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading brand logo to Cloudinary...</p>}
-          {brandLogo && (
-            <div className="flex items-center space-x-2 mt-2 bg-orange-50 p-2 rounded-xl border border-orange-100">
-              <img src={brandLogo} alt="Logo Preview" className="w-8 h-8 rounded-full object-cover" />
-              <span className="text-[9px] text-slate-500 truncate">{brandLogo}</span>
-            </div>
-          )}
-        </div>
-
         <button
-          type="submit"
-          disabled={submittingBrand || uploadingBrandLogo}
-          className="w-full bg-slate-900 hover:bg-black text-white text-xs font-black py-3 rounded-xl shadow transition cursor-pointer active:scale-95 disabled:opacity-50"
+          onClick={() => router.push('/brands')}
+          className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition cursor-pointer shadow active:scale-95"
         >
-          {submittingBrand ? 'Adding Brand...' : 'Save & Add Brand ➔'}
+          Go to Brands Page ➔
         </button>
-      </form>
+      </div>
 
       {/* Existing Brands List with Delete option */}
       <div className="space-y-2.5">
-        <h3 className="text-xs font-black text-slate-900">📋 Manage Existing Brands ({brandsList.length})</h3>
+        <h3 className="text-xs font-black text-slate-900">📋 Existing Brands ({brandsList.length})</h3>
         {brandsList.map((brand) => {
           const bId = brand._id || brand.id;
           const bName = brand.name || brand.brandName;

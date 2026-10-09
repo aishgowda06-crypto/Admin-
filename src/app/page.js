@@ -5,6 +5,8 @@ import { io } from 'socket.io-client';
 export default function AdminLiveOrders() {
   const [orders, setOrders] = useState([]);
   const [revenue, setRevenue] = useState(0);
+  const [hotelRevenues, setHotelRevenues] = useState({});
+  const [selectedHotelFilter, setSelectedHotelFilter] = useState('all');
 
   const fetchOrders = () => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
@@ -14,14 +16,26 @@ export default function AdminLiveOrders() {
       .then(data => {
         if (Array.isArray(data)) {
           setOrders(data);
+          
+          // Calculate overall revenue
           const totalRev = data.reduce((acc, curr) => acc + (curr.totalPrice || 0), 0);
           setRevenue(totalRev);
+
+          // Calculate per-hotel revenue breakdown using correct hotel/brand name
+          const revMap = {};
+          data.forEach(ord => {
+            const resolvedHotel = ord.hotelName || ord.restaurant || ord.brand || (ord.items && ord.items[0]?.hotelName) || (ord.items && ord.items[0]?.restaurant) || (ord.items && ord.items[0]?.brand) || 'Partner Hotel';
+            const ordTotal = ord.totalPrice || ord.estimatedPrice || 0;
+            revMap[resolvedHotel] = (revMap[resolvedHotel] || 0) + ordTotal;
+          });
+          setHotelRevenues(revMap);
         }
       })
       .catch((err) => {
         console.error('Failed to fetch orders from backend:', err);
         setOrders([]);
         setRevenue(0);
+        setHotelRevenues({});
       });
   };
 
@@ -201,6 +215,14 @@ export default function AdminLiveOrders() {
 
   const deliveredCount = orders.filter(o => o.progress === 100 || o.status === 'Delivered').length;
 
+  // Filter orders by selected hotel/brand if specified
+  const filteredOrders = selectedHotelFilter === 'all' 
+    ? orders 
+    : orders.filter(o => {
+        const hName = o.hotelName || o.restaurant || o.brand || (o.items && o.items[0]?.hotelName) || (o.items && o.items[0]?.restaurant) || (o.items && o.items[0]?.brand) || 'Partner Hotel';
+        return hName.toLowerCase() === selectedHotelFilter.toLowerCase();
+      });
+
   return (
     <div className="space-y-4 pb-6">
       
@@ -208,18 +230,52 @@ export default function AdminLiveOrders() {
       <div className="grid grid-cols-2 gap-2.5">
         <div className="bg-white border border-orange-100 p-3 rounded-2xl shadow-sm space-y-1">
           <p className="text-[10px] uppercase font-bold text-slate-400">Active Orders</p>
-          <p className="text-xl font-black text-orange-600">{orders.length}</p>
+          <p className="text-xl font-black text-orange-600">{filteredOrders.length}</p>
         </div>
         <div className="bg-white border border-orange-100 p-3 rounded-2xl shadow-sm space-y-1">
           <p className="text-[10px] uppercase font-bold text-slate-400">Sales Revenue</p>
-          <p className="text-xl font-black text-orange-600">₹{revenue}</p>
+          <p className="text-xl font-black text-orange-600">
+            ₹{selectedHotelFilter === 'all' ? revenue : (hotelRevenues[selectedHotelFilter] || 0)}
+          </p>
         </div>
       </div>
+
+      {/* Hotel Revenue Breakdown Filter Selector */}
+      {Object.keys(hotelRevenues).length > 0 && (
+        <div className="bg-white border border-orange-100 p-3 rounded-2xl shadow-sm space-y-2">
+          <p className="text-[10px] font-black text-slate-700 uppercase tracking-wider">🏨 Per-Hotel / Brand Revenue Breakdown</p>
+          <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              onClick={() => setSelectedHotelFilter('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 border cursor-pointer ${
+                selectedHotelFilter === 'all'
+                  ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white border-orange-500 shadow-sm'
+                  : 'bg-orange-50 text-slate-700 border-orange-200 hover:bg-orange-100'
+              }`}
+            >
+              All Hotels (₹{revenue})
+            </button>
+            {Object.entries(hotelRevenues).map(([hotelName, rev]) => (
+              <button
+                key={hotelName}
+                onClick={() => setSelectedHotelFilter(hotelName)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 border cursor-pointer ${
+                  selectedHotelFilter === hotelName
+                    ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white border-orange-500 shadow-sm'
+                    : 'bg-orange-50 text-slate-700 border-orange-200 hover:bg-orange-100'
+                }`}
+              >
+                {hotelName} (₹{rev})
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Dispatch Header & Clear Delivered Button */}
       <div className="flex justify-between items-center px-1">
         <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
-          <span>⚡ Live 1-Tap Checkpoint Dispatcher (First-Come, First-Served)</span>
+          <span>⚡ Live 1-Tap Checkpoint Dispatcher ({selectedHotelFilter === 'all' ? 'All Orders' : selectedHotelFilter})</span>
         </h2>
         {deliveredCount > 0 && (
           <button 
@@ -233,16 +289,17 @@ export default function AdminLiveOrders() {
 
       {/* Orders List */}
       <div className="space-y-4">
-        {orders.length === 0 ? (
+        {filteredOrders.length === 0 ? (
           <div className="bg-white border border-orange-100 p-8 rounded-3xl text-center space-y-2 shadow-sm">
             <p className="text-2xl">🎉</p>
-            <p className="text-xs font-bold text-slate-700">No active customer orders or catering requests in the database right now.</p>
+            <p className="text-xs font-bold text-slate-700">No active customer orders or catering requests found for this hotel/brand.</p>
           </div>
         ) : (
-          orders.map((ord, idx) => {
+          filteredOrders.map((ord, idx) => {
             const orderId = ord._id || ord.id;
             const displayTime = formatOrderDateTime(ord.createdAt || ord.time);
             const isAlreadyAccepted = Boolean(ord.acceptedBy);
+            const orderHotelName = ord.hotelName || ord.restaurant || ord.brand || (ord.items && ord.items[0]?.hotelName) || (ord.items && ord.items[0]?.restaurant) || (ord.items && ord.items[0]?.brand) || 'Partner Hotel';
 
             // Clean full address in English (stripping GPS coordinates block if present for readable view)
             const rawAddress = ord.address || ord.deliveryAddress || ord.location || 'Exact address not provided';
@@ -251,11 +308,14 @@ export default function AdminLiveOrders() {
             return (
               <div key={orderId || idx} className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-3 relative">
                 
-                {/* Top row: Order ID & Exact Date/Time */}
+                {/* Top row: Order ID, Hotel Name & Exact Date/Time */}
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col space-y-0.5">
                     <div className="flex items-center space-x-1.5">
                       <span className="text-xs font-black font-mono text-orange-600">{orderId}</span>
+                      <span className="bg-orange-100 text-orange-800 text-[9px] font-black px-1.5 py-0.5 rounded uppercase">
+                        🏨 {orderHotelName}
+                      </span>
                       {ord.isCatering && (
                         <span className="bg-purple-100 text-purple-800 text-[9px] font-black px-1.5 py-0.5 rounded uppercase">
                           Catering 🍲
