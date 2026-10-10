@@ -3,10 +3,25 @@ import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
 export default function AdminLiveOrders() {
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [orders, setOrders] = useState([]);
   const [revenue, setRevenue] = useState(0);
   const [hotelRevenues, setHotelRevenues] = useState({});
   const [selectedHotelFilter, setSelectedHotelFilter] = useState('all');
+
+  useEffect(() => {
+    // Check if admin is authenticated
+    const adminAuth = localStorage.getItem('shopmatries_admin_auth');
+    const adminFlag = localStorage.getItem('shopmatries_is_admin');
+    
+    if (adminAuth === 'true' || adminFlag === 'true') {
+      setIsAdminLoggedIn(true);
+    } else {
+      setIsAdminLoggedIn(false);
+    }
+    setIsCheckingAuth(false);
+  }, []);
 
   const fetchOrders = () => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
@@ -40,6 +55,8 @@ export default function AdminLiveOrders() {
   };
 
   useEffect(() => {
+    if (!isAdminLoggedIn) return;
+
     fetchOrders();
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
@@ -65,7 +82,7 @@ export default function AdminLiveOrders() {
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [isAdminLoggedIn]);
 
   const handleAcceptByPartner = (orderId, currentAcceptedBy) => {
     const deliveryPartnerName = localStorage.getItem('shopmatries_username') || localStorage.getItem('shopmatries_phone') || 'Delivery Partner';
@@ -212,6 +229,34 @@ export default function AdminLiveOrders() {
       hour12: true
     });
   };
+
+  // Show loading state while checking session
+  if (isCheckingAuth) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <p className="text-xs font-bold text-slate-500 animate-pulse">Verifying secure session...</p>
+      </div>
+    );
+  }
+
+  // Security barrier if admin is not authenticated
+  if (!isAdminLoggedIn) {
+    return (
+      <div className="max-w-md mx-auto mt-12 bg-white border border-orange-200 p-6 rounded-3xl text-center space-y-4 shadow-xl">
+        <p className="text-3xl">🔐</p>
+        <div className="space-y-1">
+          <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">Admin Authentication Required</h2>
+          <p className="text-xs text-slate-500">Please sign in with your admin mobile number and password first to access live orders.</p>
+        </div>
+        <a
+          href="/login"
+          className="inline-block w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-black text-xs py-3 rounded-xl shadow-md transition cursor-pointer"
+        >
+          Go to Admin Login ⚡
+        </a>
+      </div>
+    );
+  }
 
   const deliveredCount = orders.filter(o => o.progress === 100 || o.status === 'Delivered').length;
 

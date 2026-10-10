@@ -2,9 +2,24 @@
 import './globals.css';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 export default function AdminRootLayout({ children }) {
   const pathname = usePathname();
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const adminAuth = localStorage.getItem('shopmatries_admin_auth');
+    const adminFlag = localStorage.getItem('shopmatries_is_admin');
+    if (adminAuth === 'true' || adminFlag === 'true') {
+      setIsAdminLoggedIn(true);
+    } else {
+      setIsAdminLoggedIn(false);
+    }
+  }, [pathname]);
+
+  // Hide navigation if on any login-related path or not logged in
+  const hideNavigation = !isAdminLoggedIn || pathname.includes('login');
 
   return (
     <html lang="en" className="h-full">
@@ -20,21 +35,22 @@ export default function AdminRootLayout({ children }) {
         <div className="w-full h-full sm:h-[92vh] sm:max-h-[880px] sm:w-[410px] sm:rounded-[40px] bg-white shadow-2xl relative flex flex-col justify-between border-0 sm:border-[8px] border-slate-900 overflow-hidden">
           
           {/* Top Compact Brand Header */}
-          <header className="shrink-0 bg-white border-b border-orange-100 px-4 py-3 flex justify-between items-center z-30 shadow-sm">
-            <div className="flex items-center space-x-2">
-              <span className="w-7 h-7 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center text-white text-xs font-black shadow-md shadow-orange-500/25">⚡</span>
-              <h1 className="text-xs font-black tracking-tight text-slate-900">
-                Shop Matries <span className="text-orange-600">Food Admin</span>
-              </h1>
-            </div>
-            <a href="/geofence" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition">
-              🗺️ Geo-Fence Zone ↗
-            </a>
-            <a href="http://localhost:3000" target="_blank" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition">
-              Customer App ↗
-            </a>
-            
-          </header>
+          {!hideNavigation && (
+            <header className="shrink-0 bg-white border-b border-orange-100 px-4 py-3 flex justify-between items-center z-30 shadow-sm">
+              <div className="flex items-center space-x-2">
+                <span className="w-7 h-7 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center text-white text-xs font-black shadow-md shadow-orange-500/25">⚡</span>
+                <h1 className="text-xs font-black tracking-tight text-slate-900">
+                  Shop Matries <span className="text-orange-600">Food Admin</span>
+                </h1>
+              </div>
+              <a href="/geofence" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition">
+                🗺️ Geo-Fence Zone ↗
+              </a>
+              <a href="http://localhost:3000" target="_blank" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition">
+                Customer App ↗
+              </a>
+            </header>
+          )}
 
           {/* Scrollable Content Area */}
           <main className="flex-1 overflow-y-auto relative bg-slate-50/50 p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -42,47 +58,49 @@ export default function AdminRootLayout({ children }) {
           </main>
 
           {/* Stationary Bottom Function & Navigation Bar */}
-          <nav className="shrink-0 bg-white/95 backdrop-blur-md border-t border-orange-100 flex justify-around items-center py-2 px-0.5 z-35 shadow-lg">
-            <Link 
-              href="/" 
-              className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
-            >
-              <span className="text-sm">📦</span>
-              <span className="text-[9px]">Orders</span>
-            </Link>
+          {!hideNavigation && (
+            <nav className="shrink-0 bg-white/95 backdrop-blur-md border-t border-orange-100 flex justify-around items-center py-2 px-0.5 z-35 shadow-lg">
+              <Link 
+                href="/" 
+                className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+              >
+                <span className="text-sm">📦</span>
+                <span className="text-[9px]">Orders</span>
+              </Link>
 
-            <Link 
-              href="/restaurants" 
-              className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/restaurants' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
-            >
-              <span className="text-sm">🍱</span>
-              <span className="text-[9px]">Catalog</span>
-            </Link>
+              <Link 
+                href="/restaurants" 
+                className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/restaurants' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+              >
+                <span className="text-sm">🍱</span>
+                <span className="text-[9px]">Catalog</span>
+              </Link>
 
-            <Link 
-              href="/add-sku" 
-              className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/add-sku' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
-            >
-              <span className="text-sm">🍲</span>
-              <span className="text-[9px]">Add Dish</span>
-            </Link>
+              <Link 
+                href="/add-sku" 
+                className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/add-sku' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+              >
+                <span className="text-sm">🍲</span>
+                <span className="text-[9px]">Add Dish</span>
+              </Link>
 
-            <Link 
-              href="/offers" 
-              className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/offers' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
-            >
-              <span className="text-sm">🏷️</span>
-              <span className="text-[9px]">Offers</span>
-            </Link>
+              <Link 
+                href="/offers" 
+                className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/offers' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+              >
+                <span className="text-sm">🏷️</span>
+                <span className="text-[9px]">Offers</span>
+              </Link>
 
-            <Link 
-              href="/delivery-fee" 
-              className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/delivery-fee' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
-            >
-              <span className="text-sm">🛵</span>
-              <span className="text-[9px]">Delivery</span>
-            </Link>
-          </nav>
+              <Link 
+                href="/delivery-fee" 
+                className={`flex flex-col items-center py-1 px-1.5 rounded-xl transition ${pathname === '/delivery-fee' ? 'text-orange-600 font-bold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+              >
+                <span className="text-sm">🛵</span>
+                <span className="text-[9px]">Delivery</span>
+              </Link>
+            </nav>
+          )}
 
         </div>
       </body>
