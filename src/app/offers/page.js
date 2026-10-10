@@ -146,7 +146,7 @@ export default function AdminOffersPage() {
 
           <div className="z-10 text-center bg-slate-900/80 border border-orange-500/30 p-2 rounded-xl backdrop-blur-md">
             <span className="text-[9px] font-bold text-orange-400 uppercase block">Delivery</span>
-            <span className="text-xs font-black">{offer.Delivery}</span>
+            <span className="text-xs font-black">₹{offer.Delivery}</span>
           </div>
         </div>
       </div>
@@ -192,6 +192,18 @@ export default function AdminOffersPage() {
             required
           />
         </div>
+
+        <div className="space-y-1">
+  <label className="text-[10px] font-bold text-slate-600">Delivery Charge (₹)</label>
+  <textarea 
+    rows={2}
+    placeholder="e.g. ₹30 or Free"
+    value={offer.Delivery}
+    onChange={(e) => setOffer({ ...offer, Delivery: e.target.value })}
+    className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
+    required
+  />
+</div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Upload Background Image or Video (From Device)</label>
