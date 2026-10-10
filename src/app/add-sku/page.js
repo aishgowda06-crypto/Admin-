@@ -11,9 +11,9 @@ export default function AdminAddFoodDish() {
     hotelNameInput: '', 
     hotelImage: '',     
     hotelLocation: '',   // Hotel exact address or Google Maps coordinates
-    hotelCity: 'Shivamogga', // Manual city selection input
-    manualLat: '13.9299',    // Manual latitude input
-    manualLng: '75.5681',    // Manual longitude input
+    hotelCity: '',       // City selection input for both new and existing hotels
+    manualLat: '',       // Precise latitude input
+    manualLng: '',       // Precise longitude input
     price: '',
     image: '',          
     rating: '4.8',
@@ -113,7 +113,7 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Open interactive Google Maps Picker Modal
+  // Open interactive Google Maps Picker Modal and grab precise GPS if available
   const handleOpenMapPicker = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -151,11 +151,11 @@ export default function AdminAddFoodDish() {
     let finalHotelName = 'Partner Hotel';
     let finalHotelId = formData.hotelId;
     let finalHotelImage = formData.hotelImage;
-    let finalHotelLocation = formData.hotelLocation || `[GPS: ${formData.manualLat}, ${formData.manualLng}]`;
+    let finalHotelLocation = formData.hotelLocation || (formData.manualLat && formData.manualLng ? `[GPS: ${formData.manualLat}, ${formData.manualLng}]` : '');
     
-    const targetCity = formData.hotelCity.trim() || 'Shivamogga';
-    const finalLat = parseFloat(formData.manualLat) || 13.9299;
-    const finalLng = parseFloat(formData.manualLng) || 75.5681;
+    const targetCity = formData.hotelCity.trim();
+    const finalLat = formData.manualLat ? parseFloat(formData.manualLat) : null;
+    const finalLng = formData.manualLng ? parseFloat(formData.manualLng) : null;
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -163,7 +163,6 @@ export default function AdminAddFoodDish() {
       if (formData.hotelId === 'new') {
         const newHotelName = formData.hotelNameInput.trim() || 'New Partner Hotel';
         
-        // Send manually entered or mapped city, lat, and lng to backend
         const hotelRes = await fetch(`${API_URL}/api/foods/restaurants`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -189,12 +188,12 @@ export default function AdminAddFoodDish() {
       } else {
         const selectedHotelObj = hotels.find(h => h._id === formData.hotelId || h.id === formData.hotelId);
         if (selectedHotelObj) {
-          finalHotelName = selectedHotelObj.name;
+          finalHotelName = selectedHotelObj.name || selectedHotelObj.hotelName;
           finalHotelImage = selectedHotelObj.image || selectedHotelObj.hotelImage || '';
         }
       }
 
-      // Include manual city in the food payload
+      // Include manual city and dynamic rating in the food payload
       const foodPayload = {
         kannadaName: formData.kannadaName,
         englishName: formData.englishName,
@@ -204,9 +203,9 @@ export default function AdminAddFoodDish() {
         hotelImage: finalHotelImage, 
         address: finalHotelLocation,
         city: targetCity,
-        price: formData.price,
+        price: Number(formData.price),
         image: formData.image,
-        rating: formData.rating
+        rating: Number(formData.rating) || 4.8
       };
 
       const foodRes = await fetch(`${API_URL}/api/foods`, {
@@ -233,8 +232,8 @@ export default function AdminAddFoodDish() {
       }
 
       if (foodRes.ok && (foodData.success || foodData.item)) {
-        setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu in ${targetCity}!`);
-        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', hotelLocation: '', hotelCity: 'Shivamogga', manualLat: '13.9299', manualLng: '75.5681', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
+        setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu${targetCity ? ` in ${targetCity}` : ''}!`);
+        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', hotelLocation: '', hotelCity: '', manualLat: '', manualLng: '', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage(`❌ ${foodData.error || 'Failed to add dish to backend catalog.'}`);
@@ -308,7 +307,7 @@ export default function AdminAddFoodDish() {
       {/* Header Banner */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
         <h2 className="text-sm font-black text-slate-950">Add Food Dish & Hotel Location (ಹೊಸ ಆಹಾರ ಮತ್ತು ಹೋಟೆಲ್ ಸ್ಥಳ ಸೇರಿಸಿ)</h2>
-        <p className="text-[11px] text-slate-500">Manage menu dishes, ratings, hotel logos, exact map location picker, and promotions.</p>
+        <p className="text-[11px] text-slate-500">Manage menu dishes, star ratings, hotel logos, exact map location picker, and promotions.</p>
       </div>
 
       {message && (
@@ -332,7 +331,7 @@ export default function AdminAddFoodDish() {
             <option value="">-- Choose Existing Hotel --</option>
             {hotels.map(h => {
               const hId = h._id || h.id;
-              const hName = h.name || h.hotelName || h.restaurantName || 'Midari hotel';
+              const hName = h.name || h.hotelName || h.restaurantName || 'Partner Hotel';
               return (
                 <option key={hId} value={hId}>{hName}</option>
               );
@@ -356,7 +355,7 @@ export default function AdminAddFoodDish() {
               {/* Manual City Name & Lat/Lng Inputs */}
               <div className="grid grid-cols-3 gap-2 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
                 <div className="col-span-3">
-                  <label className="text-[10px] font-black text-orange-900 uppercase">🏙️ City Name (Region Zone)</label>
+                  <label className="text-[10px] font-black text-orange-900 uppercase">🏙️ City Name / Region Zone *</label>
                   <input 
                     type="text"
                     placeholder="e.g. Shivamogga, Bengaluru, Mysuru"
@@ -370,6 +369,7 @@ export default function AdminAddFoodDish() {
                   <label className="text-[9px] font-bold text-slate-700 uppercase">Latitude</label>
                   <input 
                     type="text"
+                    placeholder="e.g. 13.9299"
                     value={formData.manualLat}
                     onChange={(e) => setFormData({ ...formData, manualLat: e.target.value })}
                     className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2 font-mono mt-0.5"
@@ -380,6 +380,7 @@ export default function AdminAddFoodDish() {
                   <label className="text-[9px] font-bold text-slate-700 uppercase">Longitude</label>
                   <input 
                     type="text"
+                    placeholder="e.g. 75.5681"
                     value={formData.manualLng}
                     onChange={(e) => setFormData({ ...formData, manualLng: e.target.value })}
                     className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2 font-mono mt-0.5"
@@ -420,6 +421,21 @@ export default function AdminAddFoodDish() {
             </div>
           )}
         </div>
+
+        {/* City / Region Zone input for existing hotels */}
+        {formData.hotelId && formData.hotelId !== 'new' && (
+          <div className="space-y-1 bg-orange-50/50 p-3 rounded-2xl border border-orange-200">
+            <label className="text-[10px] font-black text-orange-900 uppercase">🏙️ City Name / Region Zone for this Dish *</label>
+            <input 
+              type="text"
+              placeholder="e.g. Shivamogga, Bengaluru, Mysuru"
+              value={formData.hotelCity}
+              onChange={(e) => setFormData({ ...formData, hotelCity: e.target.value })}
+              className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:outline-none font-bold mt-1"
+              required
+            />
+          </div>
+        )}
 
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Kannada Name (ಕನ್ನಡ ಹೆಸರು) *</label>

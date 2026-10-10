@@ -6,8 +6,9 @@ export default function AdminDeliveryFeePage() {
   const [ratePerKm, setRatePerKm] = useState('5');
   const [message, setMessage] = useState('');
 
-  // Restaurant operating hours states
+  // Restaurant and Brands operating hours states
   const [restaurants, setRestaurants] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [selectedRestId, setSelectedRestId] = useState('');
   const [schedule, setSchedule] = useState({
     autoMode: true,
@@ -23,7 +24,7 @@ export default function AdminDeliveryFeePage() {
     }
   });
 
-  // Fetch delivery fee and partner restaurants on mount + sync to localStorage for persistent locking across server sleeps
+  // Fetch delivery fee, partner restaurants, and brands on mount
   useEffect(() => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -51,32 +52,46 @@ export default function AdminDeliveryFeePage() {
         console.error('Failed to fetch delivery fee from backend, using cached local settings:', err);
       });
 
-    fetch(`${API_URL}/api/foods/restaurants`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setRestaurants(data);
-          setSelectedRestId(data[0]._id || data[0].id);
-          if (data[0].operatingHours || data[0].autoMode !== undefined) {
-            setSchedule({
-              autoMode: data[0].autoMode ?? true,
-              isManuallyOpen: data[0].isManuallyOpen ?? true,
-              operatingHours: data[0].operatingHours || schedule.operatingHours
-            });
-          }
+    Promise.all([
+      fetch(`${API_URL}/api/foods/restaurants`).then(res => res.json()).catch(() => []),
+      fetch(`${API_URL}/api/brands`).then(res => res.json()).catch(() => [])
+    ]).then(([restData, brandData]) => {
+      const validRests = Array.isArray(restData) ? restData : [];
+      const validBrands = Array.isArray(brandData) ? brandData : [];
+      
+      setRestaurants(validRests);
+      setBrands(validBrands);
+
+      if (validRests.length > 0) {
+        setSelectedRestId(validRests[0]._id || validRests[0].id);
+        if (validRests[0].operatingHours || validRests[0].autoMode !== undefined) {
+          setSchedule({
+            autoMode: validRests[0].autoMode ?? true,
+            isManuallyOpen: validRests[0].isManuallyOpen ?? true,
+            operatingHours: validRests[0].operatingHours || schedule.operatingHours
+          });
         }
-      })
-      .catch(err => console.error('Failed to fetch restaurants:', err));
+      } else if (validBrands.length > 0) {
+        setSelectedRestId(validBrands[0]._id || validBrands[0].id);
+        if (validBrands[0].operatingHours || validBrands[0].autoMode !== undefined) {
+          setSchedule({
+            autoMode: validBrands[0].autoMode ?? true,
+            isManuallyOpen: validBrands[0].isManuallyOpen ?? true,
+            operatingHours: validBrands[0].operatingHours || schedule.operatingHours
+          });
+        }
+      }
+    });
   }, []);
 
   const handleSelectRestaurant = (id) => {
     setSelectedRestId(id);
-    const rest = restaurants.find(r => (r._id || r.id) === id);
-    if (rest) {
+    const item = [...restaurants, ...brands].find(r => (r._id || r.id) === id);
+    if (item) {
       setSchedule({
-        autoMode: rest.autoMode ?? true,
-        isManuallyOpen: rest.isManuallyOpen ?? true,
-        operatingHours: rest.operatingHours || schedule.operatingHours
+        autoMode: item.autoMode ?? true,
+        isManuallyOpen: item.isManuallyOpen ?? true,
+        operatingHours: item.operatingHours || schedule.operatingHours
       });
     }
   };
@@ -98,7 +113,6 @@ export default function AdminDeliveryFeePage() {
     e.preventDefault();
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
-    // Lock permanently in local storage so it acts as the final unchanging admin fee even if server sleeps/restarts
     localStorage.setItem('buybrigg_admin_delivery_fee', deliveryFee);
     localStorage.setItem('buybrigg_admin_rate_per_km', ratePerKm);
 
@@ -126,8 +140,13 @@ export default function AdminDeliveryFeePage() {
     e.preventDefault();
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
+    const isBrand = brands.some(b => (b._id || b.id) === selectedRestId);
+    const endpoint = isBrand 
+      ? `${API_URL}/api/brands/${selectedRestId}/hours` 
+      : `${API_URL}/api/restaurants/${selectedRestId}/hours`;
+
     try {
-      const res = await fetch(`${API_URL}/api/restaurants/${selectedRestId}/hours`, {
+      const res = await fetch(endpoint, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(schedule)
@@ -150,7 +169,7 @@ export default function AdminDeliveryFeePage() {
       {/* Header */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
         <h2 className="text-sm font-black text-slate-950">Delivery Fee & Store Hours Manager 🛵</h2>
-        <p className="text-[11px] text-slate-500">Configure distance-based per-KM delivery fees and automatic or manual store timings.</p>
+        <p className="text-[11px] text-slate-500">Configure distance-based per-KM delivery fees and automatic or manual store timings for restaurants and brands.</p>
       </div>
 
       {message && (
@@ -199,15 +218,24 @@ export default function AdminDeliveryFeePage() {
         <h3 className="text-xs font-black text-slate-900 uppercase">Store Operating Hours & Status Switch</h3>
         
         <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-600 uppercase">Select Restaurant *</label>
+          <label className="text-[10px] font-bold text-slate-600 uppercase">Select Restaurant or Brand *</label>
           <select
             value={selectedRestId}
             onChange={(e) => handleSelectRestaurant(e.target.value)}
             className="w-full bg-orange-50/40 border border-orange-200 text-xs rounded-xl p-3 font-bold cursor-pointer"
           >
-            {restaurants.map(r => (
-              <option key={r._id || r.id} value={r._id || r.id}>{r.name || r.hotelName}</option>
-            ))}
+            <optgroup label="🏨 Partner Restaurants">
+              {restaurants.map(r => (
+                <option key={r._id || r.id} value={r._id || r.id}>{r.name || r.hotelName}</option>
+              ))}
+            </optgroup>
+            {brands.length > 0 && (
+              <optgroup label="⭐ Featured Brands">
+                {brands.map(b => (
+                  <option key={b._id || b.id} value={b._id || b.id}>{b.name || b.brandName}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
 
