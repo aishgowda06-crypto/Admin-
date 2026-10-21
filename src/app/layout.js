@@ -36,19 +36,24 @@ export default function AdminRootLayout({ children }) {
           
           {/* Top Compact Brand Header */}
           {!hideNavigation && (
-            <header className="shrink-0 bg-white border-b border-orange-100 px-4 py-3 flex justify-between items-center z-30 shadow-sm">
-              <div className="flex items-center space-x-2">
-                <span className="w-7 h-7 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl flex items-center justify-center text-white text-xs font-black shadow-md shadow-orange-500/25">⚡</span>
-                <h1 className="text-xs font-black tracking-tight text-slate-900">
-                  Shop Matries <span className="text-orange-600">Food Admin</span>
+            <header className="shrink-0 bg-white border-b border-orange-100 px-3 py-3 flex justify-between items-center z-30 shadow-sm">
+              <div className="flex items-center space-x-1.5">
+                <span className="w-6 h-6 bg-gradient-to-r from-red-500 to-orange-500 rounded-lg flex items-center justify-center text-white text-[10px] font-black shadow-md shadow-orange-500/25">⚡</span>
+                <h1 className="text-[11px] font-black tracking-tight text-slate-950">
+                  Shop Matries <span className="text-orange-600">Admin</span>
                 </h1>
               </div>
-              <a href="/geofence" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition">
-                🗺️ Geo-Fence Zone ↗
-              </a>
-              <a href="http://localhost:3000" target="_blank" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition">
-                Customer App ↗
-              </a>
+              <div className="flex items-center space-x-1">
+                <a href="/CustomerPriceChanger" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-orange-200 transition whitespace-nowrap">
+                  ⚡ Prices
+                </a>
+                <a href="/geofence" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-orange-200 transition whitespace-nowrap">
+                  🗺️ Geo ↗
+                </a>
+                <a href="http://localhost:3000" target="_blank" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-orange-200 transition whitespace-nowrap">
+                  App ↗
+                </a>
+              </div>
             </header>
           )}
 
