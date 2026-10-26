@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -10,13 +11,16 @@ export default function AdminOffersPage() {
     subtitle: '',
     Delivery: 'Free',
     bgMedia: '',
-    mediaType: '' // 'image' or 'video'
+    mediaType: '', // 'image' or 'video'
+    targetHotel: '', // Linked target hotel name or ID for offer navigation button
+    targetFood: ''   // Linked target food item name for offer navigation button
   });
   const [saved, setSaved] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   
-  // Brand states
+  // Brand & Hotels states for linking offers
   const [brandsList, setBrandsList] = useState([]);
+  const [hotelsList, setHotelsList] = useState([]);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
@@ -26,7 +30,12 @@ export default function AdminOffersPage() {
       .then(res => res.json())
       .then(data => {
         if (data) {
-          setOffer(prev => ({ ...prev, ...data }));
+          setOffer(prev => ({
+            ...prev,
+            ...data,
+            targetHotel: data.targetHotel || data.hotelName || '',
+            targetFood: data.targetFood || data.foodName || ''
+          }));
         }
       })
       .catch(err => console.error('Failed to fetch offer banner data:', err));
@@ -38,6 +47,14 @@ export default function AdminOffersPage() {
         if (Array.isArray(data)) setBrandsList(data);
       })
       .catch(err => console.error('Failed to fetch brands:', err));
+
+    // Fetch restaurants / hotels list for target linking
+    fetch(`${API_URL}/api/foods/restaurants`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setHotelsList(data);
+      })
+      .catch(err => console.error('Failed to fetch hotels:', err));
   };
 
   useEffect(() => {
@@ -142,6 +159,16 @@ export default function AdminOffersPage() {
             <span className="text-[9px] font-black uppercase bg-yellow-400 text-slate-950 px-2 py-0.5 rounded font-mono">{offer.tag || 'OFFER'}</span>
             <h3 className="text-sm font-black tracking-tight">{offer.title || 'Banner Title'}</h3>
             <p className="text-[10px] text-slate-200">{offer.subtitle || 'Subtitle here'}</p>
+            {offer.targetHotel && (
+              <span className="inline-block mt-1 bg-white/20 text-white text-[8px] font-extrabold px-2 py-0.5 rounded border border-white/30">
+                Linked Hotel: {offer.targetHotel}
+              </span>
+            )}
+            {offer.targetFood && (
+              <span className="inline-block mt-1 ml-1 bg-white/20 text-white text-[8px] font-extrabold px-2 py-0.5 rounded border border-white/30">
+                Linked Dish: {offer.targetFood}
+              </span>
+            )}
           </div>
 
           <div className="z-10 text-center bg-slate-900/80 border border-orange-500/30 p-2 rounded-xl backdrop-blur-md">
@@ -193,17 +220,51 @@ export default function AdminOffersPage() {
           />
         </div>
 
+        {/* Target Hotel / Restaurant Direct Link Dropdown */}
         <div className="space-y-1">
-  <label className="text-[10px] font-bold text-slate-600">Delivery Charge (₹)</label>
-  <textarea 
-    rows={2}
-    placeholder="e.g. ₹30 or Free"
-    value={offer.Delivery}
-    onChange={(e) => setOffer({ ...offer, Delivery: e.target.value })}
-    className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
-    required
-  />
-</div>
+          <label className="text-[10px] font-bold text-slate-600">Link Target Hotel / Restaurant (Optional)</label>
+          <select
+            value={offer.targetHotel}
+            onChange={(e) => setOffer({ ...offer, targetHotel: e.target.value })}
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
+          >
+            <option value="">-- No Direct Hotel Link --</option>
+            {hotelsList.map((h, idx) => {
+              const hName = h.name || h.hotelName || h.restaurantName;
+              return (
+                <option key={idx} value={hName}>
+                  🏨 {hName}
+                </option>
+              );
+            })}
+          </select>
+          <p className="text-[9px] text-slate-400">When customers click the offer banner button, it will instantly open this hotel's menu.</p>
+        </div>
+
+        {/* Target Food Item Direct Link Input */}
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-600">Link Target Food / Dish Name (Optional)</label>
+          <input 
+            type="text"
+            placeholder="e.g. Masala Dosa or Coffee"
+            value={offer.targetFood}
+            onChange={(e) => setOffer({ ...offer, targetFood: e.target.value })}
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
+          />
+          <p className="text-[9px] text-slate-400">When customers click the offer dish button, it will search and filter for this food item.</p>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] font-bold text-slate-600">Delivery Charge (₹)</label>
+          <textarea 
+            rows={2}
+            placeholder="e.g. ₹30 or Free"
+            value={offer.Delivery}
+            onChange={(e) => setOffer({ ...offer, Delivery: e.target.value })}
+            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
+            required
+          />
+        </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Upload Background Image or Video (From Device)</label>

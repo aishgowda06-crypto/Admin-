@@ -3,46 +3,59 @@ import { useState, useEffect } from 'react';
 
 export default function AdminAddFoodDish() {
   const [hotels, setHotels] = useState([]);
-  const [formData, setFormData] = useState({
+  const [searchHotelQuery, setSearchHotelQuery] = useState('');
+  
+  // Separate states for Hotels and Foods with direct Cloudinary image persistence
+  const [hotelFormData, setHotelFormData] = useState({
+    hotelNameInput: '',
+    hotelCity: 'Shivamogga',
+    hotelImage: '',
+    hotelLocation: '',
+    manualLat: '13.9299',
+    manualLng: '75.5681',
+    isManuallyOpen: true
+  });
+
+  const [foodFormData, setFoodFormData] = useState({
     kannadaName: '',
     englishName: '',
     category: 'Hotels',
     hotelId: '',
-    hotelNameInput: '', 
-    hotelImage: '',     
-    hotelLocation: '',   // Hotel exact address or Google Maps coordinates
-    hotelCity: '',       // City selection input for both new and existing hotels
-    manualLat: '',       // Precise latitude input
-    manualLng: '',       // Precise longitude input
     price: '',
-    image: '',          
-    rating: '4.8',
-    promoMedia: '',
-    mediaType: 'image'
+    customPrice: '',
+    image: '',
+    rating: '4.8'
   });
+
   const [message, setMessage] = useState('');
   const [uploadingFood, setUploadingFood] = useState(false);
   const [uploadingHotel, setUploadingHotel] = useState(false);
-  const [uploadingPromo, setUploadingPromo] = useState(false);
   const [isPickingMap, setIsPickingMap] = useState(false);
   const [mapLat, setMapLat] = useState(13.9299);
   const [mapLng, setMapLng] = useState(75.5681);
 
-  // Fetch partner hotels directly from backend database
-  useEffect(() => {
+  // Fetch partner hotels safely from backend database
+  const loadData = async () => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
-    fetch(`${API_URL}/api/foods/restaurants`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setHotels(data);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch hotels from backend:', err);
-        setHotels([]);
-      });
+    try {
+      const res = await fetch(`${API_URL}/api/foods/restaurants`);
+      const text = await res.text();
+      if (text.trim().startsWith('<')) return; // Guard against HTML error pages
+      const data = JSON.parse(text);
+      if (Array.isArray(data)) {
+        setHotels(data);
+      } else if (data.restaurants) {
+        setHotels(data.restaurants);
+      }
+    } catch (err) {
+      console.error('Failed to fetch hotels from backend:', err);
+      setHotels([]);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   // Helper function to upload files directly from frontend to Cloudinary
@@ -78,7 +91,7 @@ export default function AdminAddFoodDish() {
       setUploadingFood(true);
       const secureUrl = await uploadDirectToCloudinary(file);
       if (secureUrl) {
-        setFormData(prev => ({ ...prev, image: secureUrl }));
+        setFoodFormData(prev => ({ ...prev, image: secureUrl }));
       }
       setUploadingFood(false);
     }
@@ -90,30 +103,12 @@ export default function AdminAddFoodDish() {
       setUploadingHotel(true);
       const secureUrl = await uploadDirectToCloudinary(file);
       if (secureUrl) {
-        setFormData(prev => ({ ...prev, hotelImage: secureUrl }));
+        setHotelFormData(prev => ({ ...prev, hotelImage: secureUrl }));
       }
       setUploadingHotel(false);
     }
   };
 
-  const handlePromoMediaChange = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setUploadingPromo(true);
-      const secureUrl = await uploadDirectToCloudinary(file);
-      if (secureUrl) {
-        const isVid = file.type.includes('video') || secureUrl.endsWith('.mp4');
-        setFormData(prev => ({ 
-          ...prev, 
-          promoMedia: secureUrl,
-          mediaType: isVid ? 'video' : 'image'
-        }));
-      }
-      setUploadingPromo(false);
-    }
-  };
-
-  // Open interactive Google Maps Picker Modal and grab precise GPS if available
   const handleOpenMapPicker = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -132,10 +127,9 @@ export default function AdminAddFoodDish() {
     }
   };
 
-  // Confirm and set coordinates picked from map
   const handleConfirmMapLocation = () => {
     const coordsStr = `[GPS: ${mapLat.toFixed(6)}, ${mapLng.toFixed(6)}]`;
-    setFormData(prev => ({ 
+    setHotelFormData(prev => ({ 
       ...prev, 
       hotelLocation: coordsStr,
       manualLat: mapLat.toString(),
@@ -145,67 +139,107 @@ export default function AdminAddFoodDish() {
     alert(`✓ Hotel Location Confirmed & Saved: ${mapLat.toFixed(4)}, ${mapLng.toFixed(4)}`);
   };
 
-  const handleSubmit = async (e) => {
+  // Submit New Hotel/Restaurant
+  const handleHotelSubmit = async (e) => {
     e.preventDefault();
-    
-    let finalHotelName = 'Partner Hotel';
-    let finalHotelId = formData.hotelId;
-    let finalHotelImage = formData.hotelImage;
-    let finalHotelLocation = formData.hotelLocation || (formData.manualLat && formData.manualLng ? `[GPS: ${formData.manualLat}, ${formData.manualLng}]` : '');
-    
-    const targetCity = formData.hotelCity.trim();
-    const finalLat = formData.manualLat ? parseFloat(formData.manualLat) : null;
-    const finalLng = formData.manualLng ? parseFloat(formData.manualLng) : null;
-
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
+    const newHotelName = hotelFormData.hotelNameInput.trim();
+
+    if (!newHotelName) {
+      setMessage('❌ Please enter a valid hotel name.');
+      return;
+    }
 
     try {
-      if (formData.hotelId === 'new') {
-        const newHotelName = formData.hotelNameInput.trim() || 'New Partner Hotel';
-        
-        const hotelRes = await fetch(`${API_URL}/api/foods/restaurants`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            name: newHotelName, 
-            address: finalHotelLocation,
-            city: targetCity,
-            lat: finalLat,
-            lng: finalLng,
-            image: formData.hotelImage 
-          })
-        });
-        const hotelData = await hotelRes.json();
-        
-        if (hotelData.success && hotelData.restaurant) {
-          finalHotelName = hotelData.restaurant.name;
-          finalHotelId = hotelData.restaurant._id;
-          finalHotelImage = hotelData.restaurant.image || formData.hotelImage;
-        } else {
-          finalHotelName = newHotelName;
-          finalHotelId = 'h-' + Date.now();
-        }
-      } else {
-        const selectedHotelObj = hotels.find(h => h._id === formData.hotelId || h.id === formData.hotelId);
-        if (selectedHotelObj) {
-          finalHotelName = selectedHotelObj.name || selectedHotelObj.hotelName;
-          finalHotelImage = selectedHotelObj.image || selectedHotelObj.hotelImage || '';
-        }
-      }
+      const finalLoc = hotelFormData.hotelLocation || `[GPS: ${hotelFormData.manualLat}, ${hotelFormData.manualLng}]`;
+      const hotelRes = await fetch(`${API_URL}/api/foods/restaurants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          name: newHotelName, 
+          restaurantName: newHotelName,
+          hotelName: newHotelName,
+          address: finalLoc,
+          city: hotelFormData.hotelCity.trim() || 'Shivamogga',
+          lat: parseFloat(hotelFormData.manualLat) || 13.9299,
+          lng: parseFloat(hotelFormData.manualLng) || 75.5681,
+          image: hotelFormData.hotelImage,
+          hotelImage: hotelFormData.hotelImage,
+          isManuallyOpen: hotelFormData.isManuallyOpen
+        })
+      });
+      const text = await hotelRes.text();
+      let hotelData = {};
+      try { hotelData = JSON.parse(text); } catch(e) {}
 
-      // Include manual city and dynamic rating in the food payload
+      if (hotelRes.ok) {
+        setMessage(`✅ Hotel "${newHotelName}" successfully added with logo!`);
+        setHotelFormData({
+          hotelNameInput: '',
+          hotelCity: 'Shivamogga',
+          hotelImage: '',
+          hotelLocation: '',
+          manualLat: '13.9299',
+          manualLng: '75.5681',
+          isManuallyOpen: true
+        });
+        loadData();
+        setTimeout(() => setMessage(''), 3000);
+      } else {
+        setMessage(`❌ ${hotelData.error || hotelData.message || 'Failed to add hotel.'}`);
+        setTimeout(() => setMessage(''), 4000);
+      }
+    } catch (err) {
+      console.error('Hotel submit error:', err);
+      setMessage('❌ Network error while saving hotel.');
+      setTimeout(() => setMessage(''), 4000);
+    }
+  };
+
+  // Submit New Food Dish (automatically sets Customerprice equal to price or customPrice to satisfy backend Mongoose requirement)
+  const handleFoodSubmit = async (e) => {
+    e.preventDefault();
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
+
+    if (!foodFormData.hotelId) {
+      setMessage('❌ Please select a partner hotel for this dish.');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
+    const selectedHotelObj = hotels.find(h => String(h._id || h.id) === String(foodFormData.hotelId));
+    const finalHotelName = selectedHotelObj ? (selectedHotelObj.name || selectedHotelObj.hotelName || selectedHotelObj.restaurantName) : 'Partner Hotel';
+    const finalHotelImage = selectedHotelObj ? (selectedHotelObj.image || selectedHotelObj.hotelImage || '') : '';
+    const finalHotelCity = selectedHotelObj ? (selectedHotelObj.city || selectedHotelObj.locationHub || 'Shivamogga') : 'Shivamogga';
+    const finalHotelAddress = selectedHotelObj ? (selectedHotelObj.address || '') : '';
+
+    const parsedBasePrice = Number(foodFormData.price) || 0;
+    const finalPriceVal = foodFormData.customPrice !== '' ? Number(foodFormData.customPrice) : parsedBasePrice;
+    const dishName = foodFormData.englishName.trim();
+
+    try {
+      // Sending Customerprice equal to price so the backend Mongoose validation passes without failing
       const foodPayload = {
-        kannadaName: formData.kannadaName,
-        englishName: formData.englishName,
-        category: formData.category,
-        hotelId: finalHotelId,
+        name: dishName,
+        englishName: dishName,
+        kannadaName: foodFormData.kannadaName,
+        category: foodFormData.category,
+        hotelId: foodFormData.hotelId,
+        restaurantId: foodFormData.hotelId,
         hotelName: finalHotelName,
-        hotelImage: finalHotelImage, 
-        address: finalHotelLocation,
-        city: targetCity,
-        price: Number(formData.price),
-        image: formData.image,
-        rating: Number(formData.rating) || 4.8
+        restaurant: finalHotelName,
+        restaurantName: finalHotelName,
+        hotelImage: finalHotelImage,
+        restaurantImage: finalHotelImage,
+        address: finalHotelAddress,
+        city: finalHotelCity,
+        price: parsedBasePrice,
+        Customerprice: finalPriceVal, // Auto-satisfied to prevent backend 500 error
+        customerPrice: finalPriceVal,
+        sellingPrice: finalPriceVal,
+        image: foodFormData.image,
+        rating: Number(foodFormData.rating) || 4.8,
+        isAvailable: true
       };
 
       const foodRes = await fetch(`${API_URL}/api/foods`, {
@@ -214,40 +248,45 @@ export default function AdminAddFoodDish() {
         body: JSON.stringify(foodPayload)
       });
       
-      const foodData = await foodRes.json();
+      const text = await foodRes.text();
+      let foodData = {};
+      try { foodData = JSON.parse(text); } catch(e) {}
 
-      // Submit promotional video or banner data to offers endpoint if provided
-      if (formData.promoMedia) {
-        await fetch(`${API_URL}/api/offers`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: `${finalHotelName} Special Promo`,
-            subtitle: `Order ${formData.englishName} today!`,
-            bgMedia: formData.promoMedia,
-            mediaType: formData.mediaType,
-            tag: 'FEATURED DEAL'
-          })
-        }).catch(() => {});
-      }
-
-      if (foodRes.ok && (foodData.success || foodData.item)) {
-        setMessage(`✅ Food dish successfully added to "${finalHotelName}" menu${targetCity ? ` in ${targetCity}` : ''}!`);
-        setFormData({ kannadaName: '', englishName: '', category: 'Hotels', hotelId: '', hotelNameInput: '', hotelImage: '', hotelLocation: '', hotelCity: '', manualLat: '', manualLng: '', price: '', image: '', rating: '4.8', promoMedia: '', mediaType: 'image' });
-        setTimeout(() => setMessage(''), 3000);
+      if (foodRes.ok && (foodData.success !== false)) {
+        setMessage(`✅ Food dish "${dishName}" successfully added to "${finalHotelName}"!`);
+        setFoodFormData({
+          kannadaName: '',
+          englishName: '',
+          category: 'Hotels',
+          hotelId: '',
+          price: '',
+          customPrice: '',
+          image: '',
+          rating: '4.8'
+        });
+        loadData();
+        setTimeout(() => setMessage(''), 4000);
       } else {
-        setMessage(`❌ ${foodData.error || 'Failed to add dish to backend catalog.'}`);
-        setTimeout(() => setMessage(''), 3000);
+        const serverErrMsg = foodData.error || foodData.message || foodData.details || text || 'Internal server error on backend.';
+        setMessage(`❌ Server Error: ${serverErrMsg}`);
       }
     } catch (err) {
-      console.error('Failed to submit form:', err);
-      setMessage('❌ Network error while saving dish.');
-      setTimeout(() => setMessage(''), 3000);
+      console.error('Food submit error:', err);
+      setMessage('❌ Network connection error while saving dish.');
     }
   };
 
+  // Filter hotels for search
+  const filteredHotels = hotels.filter(h => {
+    const hName = h.name || h.hotelName || h.restaurantName || '';
+    const hCity = h.city || h.locationHub || '';
+    const q = searchHotelQuery.toLowerCase().trim();
+    if (!q) return true;
+    return hName.toLowerCase().includes(q) || hCity.toLowerCase().includes(q);
+  });
+
   return (
-    <div className="space-y-4 pb-6">
+    <main className="space-y-6 pb-12 max-w-2xl mx-auto">
 
       {/* Interactive Google Maps Picker Modal */}
       {isPickingMap && (
@@ -303,11 +342,11 @@ export default function AdminAddFoodDish() {
           </div>
         </div>
       )}
-      
+
       {/* Header Banner */}
       <div className="bg-white border border-orange-100 p-4 rounded-3xl shadow-sm space-y-1">
-        <h2 className="text-sm font-black text-slate-950">Add Food Dish & Hotel Location (ಹೊಸ ಆಹಾರ ಮತ್ತು ಹೋಟೆಲ್ ಸ್ಥಳ ಸೇರಿಸಿ)</h2>
-        <p className="text-[11px] text-slate-500">Manage menu dishes, star ratings, hotel logos, exact map location picker, and promotions.</p>
+        <h1 className="text-sm font-black text-slate-950">Admin Management Console</h1>
+        <p className="text-[11px] text-slate-500">Manage partner hotels, map coordinates, menu dishes, and customer prices securely with Cloudinary image uploads.</p>
       </div>
 
       {message && (
@@ -316,267 +355,254 @@ export default function AdminAddFoodDish() {
         </div>
       )}
 
-      {/* Form Container */}
-      <form onSubmit={handleSubmit} className="bg-white border border-orange-100 p-5 rounded-3xl shadow-sm space-y-3">
-        
-        {/* Hotel Selector / Creator */}
-        <div className="space-y-2">
-          <label className="text-[10px] font-bold text-slate-600 uppercase">Select or Add Hotel *</label>
-          <select 
-            value={formData.hotelId}
-            onChange={(e) => setFormData({ ...formData, hotelId: e.target.value })}
-            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold cursor-pointer"
-            required
-          >
-            <option value="">-- Choose Existing Hotel --</option>
-            {hotels.map(h => {
-              const hId = h._id || h.id;
-              const hName = h.name || h.hotelName || h.restaurantName || 'Partner Hotel';
-              return (
-                <option key={hId} value={hId}>{hName}</option>
-              );
-            })}
-            <option value="new">➕ Type New Hotel Name...</option>
-          </select>
-
-          {formData.hotelId === 'new' && (
-            <div className="space-y-3 pt-1 animate-fadeIn">
-              <div>
-                <input 
-                  type="text"
-                  placeholder="Enter new hotel name (e.g. Midari hotel)"
-                  value={formData.hotelNameInput}
-                  onChange={(e) => setFormData({ ...formData, hotelNameInput: e.target.value })}
-                  className="w-full bg-orange-50/50 border border-orange-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
-                  required
-                />
-              </div>
-
-              {/* Manual City Name & Lat/Lng Inputs */}
-              <div className="grid grid-cols-3 gap-2 bg-orange-50/60 p-3 rounded-2xl border border-orange-200">
-                <div className="col-span-3">
-                  <label className="text-[10px] font-black text-orange-900 uppercase">🏙️ City Name / Region Zone *</label>
-                  <input 
-                    type="text"
-                    placeholder="e.g. Shivamogga, Bengaluru, Mysuru"
-                    value={formData.hotelCity}
-                    onChange={(e) => setFormData({ ...formData, hotelCity: e.target.value })}
-                    className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:outline-none font-bold mt-1"
-                    required
-                  />
-                </div>
-                <div className="col-span-1">
-                  <label className="text-[9px] font-bold text-slate-700 uppercase">Latitude</label>
-                  <input 
-                    type="text"
-                    placeholder="e.g. 13.9299"
-                    value={formData.manualLat}
-                    onChange={(e) => setFormData({ ...formData, manualLat: e.target.value })}
-                    className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2 font-mono mt-0.5"
-                    required
-                  />
-                </div>
-                <div className="col-span-1">
-                  <label className="text-[9px] font-bold text-slate-700 uppercase">Longitude</label>
-                  <input 
-                    type="text"
-                    placeholder="e.g. 75.5681"
-                    value={formData.manualLng}
-                    onChange={(e) => setFormData({ ...formData, manualLng: e.target.value })}
-                    className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2 font-mono mt-0.5"
-                    required
-                  />
-                </div>
-                <div className="col-span-1 flex items-end">
-                  <button 
-                    type="button"
-                    onClick={handleOpenMapPicker}
-                    className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] font-bold py-2 rounded-xl transition cursor-pointer shadow active:scale-95"
-                  >
-                    🗺️ Pick Map
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-orange-800">Hotel Logo / Store Image (ಹೋಟೆಲ್ ಚಿತ್ರ) *</label>
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={handleHotelImageChange}
-                  className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer"
-                  required
-                />
-              </div>
-
-              {uploadingHotel && (
-                <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading hotel image to Cloudinary...</p>
-              )}
-
-              {formData.hotelImage && (
-                <div className="relative w-full h-24 bg-slate-100 rounded-xl overflow-hidden border border-orange-200">
-                  <img src={formData.hotelImage} alt="Hotel Preview" className="w-full h-full object-cover" />
-                </div>
-              )}
-            </div>
-          )}
+      {/* SECTION 1: ADD NEW HOTEL / RESTAURANT */}
+      <section className="bg-white border border-orange-200 p-5 rounded-3xl shadow-sm space-y-4">
+        <div className="border-b border-orange-100 pb-3">
+          <h2 className="text-xs font-black text-slate-950 uppercase tracking-wider">🏨 Step 1: Add New Hotel / Restaurant</h2>
+          <p className="text-[10px] text-slate-500">Register a new partner restaurant with exact GPS coordinates and Cloudinary hotel logo.</p>
         </div>
 
-        {/* City / Region Zone input for existing hotels */}
-        {formData.hotelId && formData.hotelId !== 'new' && (
-          <div className="space-y-1 bg-orange-50/50 p-3 rounded-2xl border border-orange-200">
-            <label className="text-[10px] font-black text-orange-900 uppercase">🏙️ City Name / Region Zone for this Dish *</label>
+        <form onSubmit={handleHotelSubmit} className="space-y-3">
+          <div>
+            <label className="text-[10px] font-black text-slate-700 uppercase">Hotel Name *</label>
             <input 
               type="text"
-              placeholder="e.g. Shivamogga, Bengaluru, Mysuru"
-              value={formData.hotelCity}
-              onChange={(e) => setFormData({ ...formData, hotelCity: e.target.value })}
-              className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:outline-none font-bold mt-1"
+              placeholder="e.g. Midari Hotel & Restaurant"
+              value={hotelFormData.hotelNameInput}
+              onChange={(e) => setHotelFormData({ ...hotelFormData, hotelNameInput: e.target.value })}
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold mt-1"
               required
             />
           </div>
-        )}
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-600">Kannada Name (ಕನ್ನಡ ಹೆಸರು) *</label>
-          <input 
-            type="text" 
-            placeholder="ಉದಾ: ಮಸಾಲೆ ದೋಸೆ, ಚಿಕನ್ ಬಿರಿಯಾನಿ"
-            value={formData.kannadaName}
-            onChange={(e) => setFormData({ ...formData, kannadaName: e.target.value })}
-            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
-            required
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-black text-slate-700 uppercase">City / Region Hub *</label>
+              <input 
+                type="text"
+                placeholder="e.g. Shivamogga, Bengaluru"
+                value={hotelFormData.hotelCity}
+                onChange={(e) => setHotelFormData({ ...hotelFormData, hotelCity: e.target.value })}
+                className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold mt-1"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-700 uppercase">Store Status</label>
+              <select
+                value={hotelFormData.isManuallyOpen ? 'open' : 'closed'}
+                onChange={(e) => setHotelFormData({ ...hotelFormData, isManuallyOpen: e.target.value === 'open' })}
+                className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none font-bold mt-1 cursor-pointer"
+              >
+                <option value="open">🟢 Open (Accepting Orders)</option>
+                <option value="closed">🔴 Closed (Temporarily Off)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 bg-orange-50/50 p-3 rounded-2xl border border-orange-200">
+            <div>
+              <label className="text-[9px] font-bold text-slate-700 uppercase">Latitude</label>
+              <input 
+                type="text"
+                value={hotelFormData.manualLat}
+                onChange={(e) => setHotelFormData({ ...hotelFormData, manualLat: e.target.value })}
+                className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2 font-mono mt-0.5"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-bold text-slate-700 uppercase">Longitude</label>
+              <input 
+                type="text"
+                value={hotelFormData.manualLng}
+                onChange={(e) => setHotelFormData({ ...hotelFormData, manualLng: e.target.value })}
+                className="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl p-2 font-mono mt-0.5"
+                required
+              />
+            </div>
+            <div className="flex items-end">
+              <button 
+                type="button"
+                onClick={handleOpenMapPicker}
+                className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] font-bold py-2.5 rounded-xl transition cursor-pointer shadow active:scale-95"
+              >
+                🗺️ Pick Map
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-700 uppercase">Hotel Logo / Image Upload *</label>
+            <input 
+              type="file" 
+              accept="image/*"
+              onChange={handleHotelImageChange}
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white cursor-pointer"
+              required
+            />
+            {uploadingHotel && <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading hotel image to Cloudinary...</p>}
+            {hotelFormData.hotelImage && (
+              <div className="w-full h-24 rounded-xl overflow-hidden border border-orange-200 mt-2">
+                <img src={hotelFormData.hotelImage} alt="Hotel Preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
+
+          <button 
+            type="submit"
+            className="w-full bg-slate-900 hover:bg-slate-950 text-white text-xs font-black py-3 rounded-xl shadow transition active:scale-95 cursor-pointer mt-2"
+          >
+            + Register New Hotel 🏨
+          </button>
+        </form>
+      </section>
+
+      {/* SECTION 2: ADD FOOD DISH & CUSTOM PRICE */}
+      <section className="bg-white border border-orange-200 p-5 rounded-3xl shadow-sm space-y-4">
+        <div className="border-b border-orange-100 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div>
+            <h2 className="text-xs font-black text-slate-950 uppercase tracking-wider">🍽️ Step 2: Add Food Dish & Customer Price</h2>
+            <p className="text-[10px] text-slate-500">Assign menu items with Cloudinary image upload and custom customer pricing.</p>
+          </div>
+          {/* Hotel Search Button & Input */}
+          <div className="w-full sm:w-auto relative">
+            <input 
+              type="text"
+              placeholder="🔍 Search hotels to assign..."
+              value={searchHotelQuery}
+              onChange={(e) => setSearchHotelQuery(e.target.value)}
+              className="w-full sm:w-48 bg-orange-50/60 border border-orange-200 text-[11px] rounded-xl px-3 py-1.5 focus:outline-none font-bold"
+            />
+          </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-600">English Dish Name *</label>
-          <input 
-            type="text" 
-            placeholder="e.g. Hyderabadi Chicken Biryani"
-            value={formData.englishName}
-            onChange={(e) => setFormData({ ...formData, englishName: e.target.value })}
-            className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          <div className="space-y-1 col-span-1">
-            <label className="text-[10px] font-bold text-slate-600">Category *</label>
+        <form onSubmit={handleFoodSubmit} className="space-y-3">
+          <div>
+            <label className="text-[10px] font-black text-slate-700 uppercase">Select Partner Hotel *</label>
             <select 
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 cursor-pointer"
+              value={foodFormData.hotelId}
+              onChange={(e) => setFoodFormData({ ...foodFormData, hotelId: e.target.value })}
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold mt-1 cursor-pointer"
+              required
             >
-              <option value="Hotels">Hotels</option>
-              <option value="Breakfast">Breakfast</option>
-              <option value="Veg">Veg</option>
-              <option value="Non-Veg">Non-Veg</option>
-              <option value="South">South</option>
-              <option value="North">North</option>
-              <option value="Chats">Chats</option>
+              <option value="">-- Choose Partner Hotel ({filteredHotels.length} available) --</option>
+              {filteredHotels.map(h => {
+                const hId = h._id || h.id;
+                const hName = h.name || h.hotelName || h.restaurantName || 'Partner Hotel';
+                const hCity = h.city || h.locationHub || 'Shivamogga';
+                return (
+                  <option key={hId} value={hId}>{hName} ({hCity})</option>
+                );
+              })}
             </select>
           </div>
 
-          <div className="space-y-1 col-span-1">
-            <label className="text-[10px] font-bold text-slate-600">Price (₹) *</label>
-            <input 
-              type="number" 
-              placeholder="250"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
-              required
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-black text-slate-700 uppercase">Kannada Dish Name (ಕನ್ನಡ) *</label>
+              <input 
+                type="text" 
+                placeholder="ಉದಾ: ಮಸಾಲೆ ದೋಸೆ"
+                value={foodFormData.kannadaName}
+                onChange={(e) => setFoodFormData({ ...foodFormData, kannadaName: e.target.value })}
+                className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none mt-1"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-700 uppercase">English Dish Name *</label>
+              <input 
+                type="text" 
+                placeholder="e.g. Masala Dosa"
+                value={foodFormData.englishName}
+                onChange={(e) => setFoodFormData({ ...foodFormData, englishName: e.target.value })}
+                className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none mt-1"
+                required
+              />
+            </div>
           </div>
 
-          <div className="space-y-1 col-span-1">
-            <label className="text-[10px] font-bold text-slate-600">Rating (/5) *</label>
-            <input 
-              type="number" 
-              step="0.1" 
-              max="5" 
-              min="1"
-              placeholder="4.8"
-              value={formData.rating}
-              onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-              className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
-              required
-            />
-          </div>
-        </div>
-
-        {/* Food Dish Image Upload Option */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-600">Food Dish Image Upload (ಆಹಾರದ ಚಿತ್ರ) *</label>
-          <input 
-            type="file" 
-            accept="image/*"
-            onChange={handleFoodImageChange}
-            className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer"
-            required
-          />
-        </div>
-
-        {uploadingFood && (
-          <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading food image to Cloudinary...</p>
-        )}
-
-        {formData.image && (
-          <div className="relative w-full h-32 bg-slate-100 rounded-xl overflow-hidden border border-orange-200">
-            <img src={formData.image} alt="Food Preview" className="w-full h-full object-cover" />
-          </div>
-        )}
-
-        {/* PROMOTIONAL VIDEO / BANNER SECTION */}
-        <div className="space-y-2 pt-3 border-t border-orange-100">
-          <div className="flex justify-between items-center">
-            <label className="text-[10px] font-bold text-orange-900 uppercase">🎬 Promotional Video / Banner (Optional)</label>
-            {formData.promoMedia && (
-              <button
-                type="button"
-                onClick={() => setFormData(prev => ({ ...prev, promoMedia: '' }))}
-                className="text-[9px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200 cursor-pointer"
+          <div className="grid grid-cols-4 gap-2">
+            <div className="col-span-1">
+              <label className="text-[10px] font-black text-slate-700 uppercase">Category</label>
+              <select 
+                value={foodFormData.category}
+                onChange={(e) => setFoodFormData({ ...foodFormData, category: e.target.value })}
+                className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none mt-1 cursor-pointer"
               >
-                Remove Promo
-              </button>
+                <option value="Hotels">Hotels</option>
+                <option value="Breakfast">Breakfast</option>
+                <option value="Veg">Veg</option>
+                <option value="Non-Veg">Non-Veg</option>
+                <option value="South">South</option>
+                <option value="North">North</option>
+                <option value="Chats">Chats</option>
+              </select>
+            </div>
+            <div className="col-span-1">
+              <label className="text-[10px] font-black text-slate-700 uppercase">Base Price (₹) *</label>
+              <input 
+                type="number" 
+                placeholder="100"
+                value={foodFormData.price}
+                onChange={(e) => setFoodFormData({ ...foodFormData, price: e.target.value })}
+                className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none mt-1"
+                required
+              />
+            </div>
+            <div className="col-span-1">
+              <label className="text-[10px] font-black text-red-600 uppercase">Customer Price (₹) *</label>
+              <input 
+                type="number" 
+                placeholder="120"
+                value={foodFormData.customPrice}
+                onChange={(e) => setFoodFormData({ ...foodFormData, customPrice: e.target.value })}
+                className="w-full bg-red-50/50 border border-red-200 text-red-900 text-xs rounded-xl p-3 focus:outline-none mt-1 font-bold"
+                required
+              />
+            </div>
+            <div className="col-span-1">
+              <label className="text-[10px] font-black text-slate-700 uppercase">Rating (/5)</label>
+              <input 
+                type="number" 
+                step="0.1" 
+                max="5" 
+                min="1"
+                value={foodFormData.rating}
+                onChange={(e) => setFoodFormData({ ...foodFormData, rating: e.target.value })}
+                className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none mt-1"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-700 uppercase">Food Dish Image Upload *</label>
+            <input 
+              type="file" 
+              accept="image/*"
+              onChange={handleFoodImageChange}
+              className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white cursor-pointer"
+              required
+            />
+            {uploadingFood && <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading food image to Cloudinary...</p>}
+            {foodFormData.image && (
+              <div className="w-full h-24 rounded-xl overflow-hidden border border-orange-200 mt-2">
+                <img src={foodFormData.image} alt="Food Preview" className="w-full h-full object-cover" />
+              </div>
             )}
           </div>
-          <input 
-            type="file" 
-            accept="image/*,video/*"
-            onChange={handlePromoMediaChange}
-            className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-slate-900 file:text-white hover:file:bg-black cursor-pointer"
-          />
-          <p className="text-[9px] text-slate-400">Upload a promotional video (.mp4) or banner image to showcase in the customer home feed.</p>
-        </div>
 
-        {uploadingPromo && (
-          <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading promotional media...</p>
-        )}
+          <button 
+            type="submit"
+            className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer mt-2"
+          >
+            + Save Food Dish & Customer Price ⚡
+          </button>
+        </form>
+      </section>
 
-        {formData.promoMedia && (
-          <div className="relative w-full h-28 bg-slate-900 rounded-xl overflow-hidden border border-orange-200">
-            {formData.mediaType === 'video' ? (
-              <video autoPlay loop muted playsInline className="w-full h-full object-cover">
-                <source src={formData.promoMedia} />
-              </video>
-            ) : (
-              <img src={formData.promoMedia} alt="Promo Preview" className="w-full h-full object-cover" />
-            )}
-          </div>
-        )}
-
-        <button 
-          type="submit"
-          className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3 rounded-xl shadow-lg shadow-orange-500/20 transition mt-2 active:scale-95 cursor-pointer"
-        >
-          + Save & Assign Dish to Hotel ⚡
-        </button>
-
-      </form>
-
-    </div>
+    </main>
   );
 }
