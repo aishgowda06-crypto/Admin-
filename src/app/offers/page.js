@@ -3,40 +3,65 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
+const createEmptyOfferItem = () => ({
+  tag: '',
+  title: '',
+  subtitle: '',
+  Delivery: 'Free',
+  bgMedia: '',
+  mediaType: '', // 'image' or 'video'
+  targetHotel: '', // Linked target hotel name or ID for offer navigation button
+  targetFood: ''   // Linked target food item name for offer navigation button
+});
+
 export default function AdminOffersPage() {
   const router = useRouter();
-  const [offer, setOffer] = useState({
-    tag: '',
-    title: '',
-    subtitle: '',
-    Delivery: 'Free',
-    bgMedia: '',
-    mediaType: '', // 'image' or 'video'
-    targetHotel: '', // Linked target hotel name or ID for offer navigation button
-    targetFood: ''   // Linked target food item name for offer navigation button
-  });
+  const [offer, setOffer] = useState(createEmptyOfferItem());
+  const [offersList, setOffersList] = useState([]);
+  const [activeOfferIdx, setActiveOfferIdx] = useState(0);
   const [saved, setSaved] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
-  
+
   // Brand & Hotels states for linking offers
   const [brandsList, setBrandsList] = useState([]);
   const [hotelsList, setHotelsList] = useState([]);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
+  const normalizeOfferItem = (item = {}) => ({
+    ...createEmptyOfferItem(),
+    ...item,
+    Delivery: item.Delivery ?? item.delivery ?? 'Free',
+    bgMedia: item.bgMedia || item.image || '',
+    mediaType:
+      item.mediaType ||
+      (typeof (item.bgMedia || item.image) === 'string' &&
+      (item.bgMedia || item.image).match(/\.(mp4|webm|ogg|mov)(\?|$)/i)
+        ? 'video'
+        : (item.bgMedia || item.image)
+        ? 'image'
+        : ''),
+    targetHotel: item.targetHotel || item.hotelName || '',
+    targetFood: item.targetFood || item.foodName || ''
+  });
+
   const fetchData = () => {
-    // Fetch banner/offer data
+    // Fetch banner/offer data (supports single object or array of offers)
     fetch(`${API_URL}/api/offers`)
       .then(res => res.json())
       .then(data => {
-        if (data) {
-          setOffer(prev => ({
-            ...prev,
-            ...data,
-            targetHotel: data.targetHotel || data.hotelName || '',
-            targetFood: data.targetFood || data.foodName || ''
-          }));
-        }
+        const rawList = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.offers)
+          ? data.offers
+          : data && typeof data === 'object' && (data.title || data.tag || data.subtitle || data.bgMedia)
+          ? [data]
+          : [];
+
+        const normalized = rawList.length > 0 ? rawList.map(normalizeOfferItem) : [createEmptyOfferItem()];
+        setOffersList(normalized);
+        setActiveOfferIdx(0);
+        setOffer(normalized[0]);
       })
       .catch(err => console.error('Failed to fetch offer banner data:', err));
 
@@ -88,33 +113,145 @@ export default function AdminOffersPage() {
     }
   };
 
-  // Handle banner media upload
-  const handleMediaUpload = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const isVideo = file.type.startsWith('video');
-      setUploadingMedia(true);
-      const secureUrl = await uploadDirectToCloudinary(file);
-      if (secureUrl) {
-        setOffer(prev => ({
-          ...prev,
-          bgMedia: secureUrl,
-          mediaType: isVideo ? 'video' : 'image'
-        }));
-      }
-      setUploadingMedia(false);
-    }
+  // Sync current offer edits into offersList
+  const syncOfferToList = (updatedOffer, targetIndex = activeOfferIdx) => {
+    setOffersList(prev => {
+      const base = prev.length > 0 ? [...prev] : [createEmptyOfferItem()];
+      const safeIdx = Math.min(Math.max(targetIndex, 0), base.length - 1);
+      base[safeIdx] = updatedOffer;
+      return base;
+    });
   };
 
-  // Save Banner Changes
+  const handleOfferFieldChange = (patch) => {
+    setOffer(prev => {
+      const next = { ...prev, ...patch };
+      syncOfferToList(next, activeOfferIdx);
+      return next;
+    });
+  };
+
+  // Handle single or multiple banner media uploads
+  const handleMediaUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploadingMedia(true);
+    const uploadedItems = [];
+
+    for (const file of files) {
+      const isVideo = file.type.startsWith('video');
+      const secureUrl = await uploadDirectToCloudinary(file);
+      if (secureUrl) {
+        uploadedItems.push({
+          bgMedia: secureUrl,
+          mediaType: isVideo ? 'video' : 'image'
+        });
+      }
+    }
+
+    if (uploadedItems.length > 0) {
+      setOffer(prev => {
+        const currentWithFirstMedia = {
+          ...prev,
+          bgMedia: uploadedItems[0].bgMedia,
+          mediaType: uploadedItems[0].mediaType
+        };
+
+        setOffersList(prevList => {
+          const base = prevList.length > 0 ? [...prevList] : [createEmptyOfferItem()];
+          const safeIdx = Math.min(Math.max(activeOfferIdx, 0), base.length - 1);
+          base[safeIdx] = currentWithFirstMedia;
+
+          if (uploadedItems.length > 1) {
+            const extraOffers = uploadedItems.slice(1).map((mediaObj, idx) => ({
+              ...createEmptyOfferItem(),
+              tag: prev.tag || '',
+              title: prev.title ? `${prev.title} (${safeIdx + idx + 2})` : '',
+              subtitle: prev.subtitle || '',
+              Delivery: prev.Delivery || 'Free',
+              targetHotel: prev.targetHotel || '',
+              targetFood: prev.targetFood || '',
+              bgMedia: mediaObj.bgMedia,
+              mediaType: mediaObj.mediaType
+            }));
+            return [...base, ...extraOffers];
+          }
+
+          return base;
+        });
+
+        return currentWithFirstMedia;
+      });
+    }
+
+    setUploadingMedia(false);
+    e.target.value = '';
+  };
+
+  // Add a new offer slot to the list
+  const handleAddNewOffer = () => {
+    const freshOffer = createEmptyOfferItem();
+    setOffersList(prev => {
+      const currentSynced = prev.length > 0 ? [...prev] : [createEmptyOfferItem()];
+      const safeIdx = Math.min(Math.max(activeOfferIdx, 0), currentSynced.length - 1);
+      currentSynced[safeIdx] = offer;
+      const nextList = [...currentSynced, freshOffer];
+      setActiveOfferIdx(nextList.length - 1);
+      return nextList;
+    });
+    setOffer(freshOffer);
+  };
+
+  // Switch between multiple offers
+  const handleSelectOffer = (idx) => {
+    setOffersList(prev => {
+      const nextList = prev.length > 0 ? [...prev] : [createEmptyOfferItem()];
+      const safeCurrentIdx = Math.min(Math.max(activeOfferIdx, 0), nextList.length - 1);
+      nextList[safeCurrentIdx] = offer;
+      const target = nextList[idx] || createEmptyOfferItem();
+      setActiveOfferIdx(idx);
+      setOffer(target);
+      return nextList;
+    });
+  };
+
+  // Remove an offer from the list
+  const handleRemoveOffer = (idx) => {
+    setOffersList(prev => {
+      if (prev.length <= 1) {
+        const resetSingle = createEmptyOfferItem();
+        setActiveOfferIdx(0);
+        setOffer(resetSingle);
+        return [resetSingle];
+      }
+      const filtered = prev.filter((_, i) => i !== idx);
+      const nextIdx = Math.min(activeOfferIdx, filtered.length - 1);
+      setActiveOfferIdx(nextIdx);
+      setOffer(filtered[nextIdx]);
+      return filtered;
+    });
+  };
+
+  // Save Banner Changes (sends active offer + all offers list)
   const handleSaveBanner = (e) => {
     e.preventDefault();
+    const finalOffers = offersList.length > 0
+      ? offersList.map((item, idx) => (idx === activeOfferIdx ? offer : item))
+      : [offer];
+
+    const payload = {
+      ...offer,
+      offers: finalOffers
+    };
+
     fetch(`${API_URL}/api/offers`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(offer)
+      body: JSON.stringify(payload)
     })
       .then(() => {
+        setOffersList(finalOffers);
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
       })
@@ -137,7 +274,65 @@ export default function AdminOffersPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      
+
+      {/* Multiple Offers Selector & Add Offer Bar */}
+      <div className="bg-white border border-orange-100 p-3.5 rounded-2xl shadow-sm space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
+            Offers & Banners ({offersList.length || 1})
+          </span>
+          <button
+            type="button"
+            onClick={handleAddNewOffer}
+            className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-black px-3 py-1 rounded-xl transition cursor-pointer active:scale-95"
+          >
+            + Add Offer
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {(offersList.length > 0 ? offersList : [offer]).map((item, idx) => {
+            const isSelected = idx === activeOfferIdx;
+            return (
+              <div
+                key={idx}
+                className={`flex items-center gap-1.5 shrink-0 rounded-xl border px-2.5 py-1.5 text-[10px] font-bold transition ${
+                  isSelected
+                    ? 'bg-orange-50 border-orange-400 text-orange-800'
+                    : 'bg-slate-50 border-slate-200 text-slate-600'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleSelectOffer(idx)}
+                  className="flex items-center gap-1.5 cursor-pointer"
+                >
+                  {item.bgMedia && item.mediaType !== 'video' && (
+                    <img
+                      src={item.bgMedia}
+                      alt={item.title || `Offer ${idx + 1}`}
+                      className="w-5 h-5 rounded-full object-cover border border-orange-200"
+                    />
+                  )}
+                  <span>{item.title ? item.title : `Offer ${idx + 1}`}</span>
+                </button>
+
+                {offersList.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveOffer(idx)}
+                    className="text-rose-600 hover:text-rose-800 font-black px-1 cursor-pointer"
+                    title="Remove Offer"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Live Preview Banner */}
       <div className="space-y-1">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Live Customer Banner Preview</p>
@@ -187,23 +382,23 @@ export default function AdminOffersPage() {
       {/* Edit Banner Form */}
       <form onSubmit={handleSaveBanner} className="bg-white border border-orange-100 p-4 rounded-3xl space-y-3 shadow-sm">
         <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Edit Customer Banner Offer</h2>
-        
+
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Offer Tag / Badge Text</label>
-          <input 
+          <input
             type="text"
             value={offer.tag}
-            onChange={(e) => setOffer({ ...offer, tag: e.target.value })}
+            onChange={(e) => handleOfferFieldChange({ tag: e.target.value })}
             className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
           />
         </div>
 
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Main Headline Offer Title *</label>
-          <input 
+          <input
             type="text"
             value={offer.title}
-            onChange={(e) => setOffer({ ...offer, title: e.target.value })}
+            onChange={(e) => handleOfferFieldChange({ title: e.target.value })}
             className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
             required
           />
@@ -211,10 +406,10 @@ export default function AdminOffersPage() {
 
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Subtitle / Description *</label>
-          <textarea 
+          <textarea
             rows={2}
             value={offer.subtitle}
-            onChange={(e) => setOffer({ ...offer, subtitle: e.target.value })}
+            onChange={(e) => handleOfferFieldChange({ subtitle: e.target.value })}
             className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
             required
           />
@@ -225,7 +420,7 @@ export default function AdminOffersPage() {
           <label className="text-[10px] font-bold text-slate-600">Link Target Hotel / Restaurant (Optional)</label>
           <select
             value={offer.targetHotel}
-            onChange={(e) => setOffer({ ...offer, targetHotel: e.target.value })}
+            onChange={(e) => handleOfferFieldChange({ targetHotel: e.target.value })}
             className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
           >
             <option value="">-- No Direct Hotel Link --</option>
@@ -244,11 +439,11 @@ export default function AdminOffersPage() {
         {/* Target Food Item Direct Link Input */}
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Link Target Food / Dish Name (Optional)</label>
-          <input 
+          <input
             type="text"
             placeholder="e.g. Masala Dosa or Coffee"
             value={offer.targetFood}
-            onChange={(e) => setOffer({ ...offer, targetFood: e.target.value })}
+            onChange={(e) => handleOfferFieldChange({ targetFood: e.target.value })}
             className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500"
           />
           <p className="text-[9px] text-slate-400">When customers click the offer dish button, it will search and filter for this food item.</p>
@@ -256,20 +451,21 @@ export default function AdminOffersPage() {
 
         <div className="space-y-1">
           <label className="text-[10px] font-bold text-slate-600">Delivery Charge (₹)</label>
-          <textarea 
+          <textarea
             rows={2}
             placeholder="e.g. ₹30 or Free"
             value={offer.Delivery}
-            onChange={(e) => setOffer({ ...offer, Delivery: e.target.value })}
+            onChange={(e) => handleOfferFieldChange({ Delivery: e.target.value })}
             className="w-full bg-orange-50/40 border border-orange-200 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-orange-500 font-bold"
             required
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-[10px] font-bold text-slate-600">Upload Background Image or Video (From Device)</label>
-          <input 
-            type="file" 
+          <label className="text-[10px] font-bold text-slate-600">Upload Background Image(s) or Video (From Device)</label>
+          <input
+            type="file"
+            multiple
             accept="image/*,video/*"
             onChange={handleMediaUpload}
             className="w-full bg-orange-50/40 border border-orange-200 text-slate-600 text-xs rounded-xl p-2 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-orange-500 file:text-white hover:file:bg-orange-600 cursor-pointer"
@@ -277,7 +473,7 @@ export default function AdminOffersPage() {
         </div>
         {uploadingMedia && <p className="text-[10px] text-orange-600 font-bold animate-pulse">Uploading background media...</p>}
 
-        <button 
+        <button
           type="submit"
           className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-xs font-black py-3 rounded-xl shadow-lg transition active:scale-95 cursor-pointer"
         >
