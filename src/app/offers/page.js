@@ -28,6 +28,21 @@ export default function AdminOffersPage() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://food-cgs4.onrender.com';
 
+  const hasOfferContent = (item) => {
+    if (!item || typeof item !== 'object') return false;
+    return Boolean(
+      item.title ||
+      item.tag ||
+      item.subtitle ||
+      item.bgMedia ||
+      item.image ||
+      item.targetHotel ||
+      item.hotelName ||
+      item.targetFood ||
+      item.foodName
+    );
+  };
+
   const normalizeOfferItem = (item = {}) => ({
     ...createEmptyOfferItem(),
     ...item,
@@ -45,23 +60,72 @@ export default function AdminOffersPage() {
     targetFood: item.targetFood || item.foodName || ''
   });
 
-  const fetchData = () => {
-    // Fetch banner/offer data (supports single object or array of offers)
-    fetch(`${API_URL}/api/offers`)
+  const extractOffersArray = (payload) => {
+    if (!payload) return [];
+
+    if (Array.isArray(payload)) {
+      const expanded = [];
+      for (const entry of payload) {
+        if (Array.isArray(entry?.offers) && entry.offers.length > 0) {
+          expanded.push(...entry.offers);
+        } else if (hasOfferContent(entry)) {
+          expanded.push(entry);
+        }
+      }
+      return expanded;
+    }
+
+    if (typeof payload === 'object') {
+      const nestedArrays = [
+        payload.offers,
+        payload.items,
+        payload.banners,
+        payload.result,
+        payload.records,
+        payload.data?.offers,
+        payload.data?.items,
+        payload.data,
+      ];
+
+      for (const candidate of nestedArrays) {
+        if (Array.isArray(candidate) && candidate.length > 0) {
+          return extractOffersArray(candidate);
+        }
+      }
+
+      if (payload.data && typeof payload.data === 'object' && hasOfferContent(payload.data)) {
+        return [payload.data];
+      }
+
+      if (payload.offer && typeof payload.offer === 'object' && hasOfferContent(payload.offer)) {
+        return [payload.offer];
+      }
+
+      if (hasOfferContent(payload)) {
+        return [payload];
+      }
+    }
+
+    return [];
+  };
+
+  const fetchData = (preferredIdx = null) => {
+    // Fetch banner/offer data (supports single object, array of offers, or nested { offers: [...] } / { data: [...] })
+    fetch(`${API_URL}/api/offers?_t=${Date.now()}`, { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
-        const rawList = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.offers)
-          ? data.offers
-          : data && typeof data === 'object' && (data.title || data.tag || data.subtitle || data.bgMedia)
-          ? [data]
-          : [];
+        const rawList = extractOffersArray(data).filter(
+          (item) => item && typeof item === 'object'
+        );
 
         const normalized = rawList.length > 0 ? rawList.map(normalizeOfferItem) : [createEmptyOfferItem()];
         setOffersList(normalized);
-        setActiveOfferIdx(0);
-        setOffer(normalized[0]);
+        setActiveOfferIdx(prev => {
+          const targetIdx = typeof preferredIdx === 'number' ? preferredIdx : prev;
+          const safeIdx = Math.min(Math.max(targetIdx, 0), normalized.length - 1);
+          setOffer(normalized[safeIdx]);
+          return safeIdx;
+        });
       })
       .catch(err => console.error('Failed to fetch offer banner data:', err));
 
@@ -166,6 +230,7 @@ export default function AdminOffersPage() {
           if (uploadedItems.length > 1) {
             const extraOffers = uploadedItems.slice(1).map((mediaObj, idx) => ({
               ...createEmptyOfferItem(),
+              isNewOffer: true,
               tag: prev.tag || '',
               title: prev.title ? `${prev.title} (${safeIdx + idx + 2})` : '',
               subtitle: prev.subtitle || '',
@@ -189,9 +254,12 @@ export default function AdminOffersPage() {
     e.target.value = '';
   };
 
-  // Add a new offer slot to the list
+  // Add a new separate offer slot (marked as a new offer until saved)
   const handleAddNewOffer = () => {
-    const freshOffer = createEmptyOfferItem();
+    const freshOffer = {
+      ...createEmptyOfferItem(),
+      isNewOffer: true,
+    };
     setOffersList(prev => {
       const currentSynced = prev.length > 0 ? [...prev] : [createEmptyOfferItem()];
       const safeIdx = Math.min(Math.max(activeOfferIdx, 0), currentSynced.length - 1);
@@ -233,29 +301,47 @@ export default function AdminOffersPage() {
     });
   };
 
-  // Save Banner Changes (sends active offer + all offers list)
-  const handleSaveBanner = (e) => {
+  // Save Banner Changes (sends PUT with full offers array)
+  const handleSaveBanner = async (e) => {
     e.preventDefault();
-    const finalOffers = offersList.length > 0
-      ? offersList.map((item, idx) => (idx === activeOfferIdx ? offer : item))
-      : [offer];
+
+    const cleanedCurrentOffer = { ...offer };
+    delete cleanedCurrentOffer.isNewOffer;
+
+    const finalOffers =
+      offersList.length > 0
+        ? offersList.map((item, idx) => {
+            const targetItem = idx === activeOfferIdx ? cleanedCurrentOffer : item;
+            const copy = { ...targetItem };
+            delete copy.isNewOffer;
+            return copy;
+          })
+        : [cleanedCurrentOffer];
 
     const payload = {
-      ...offer,
-      offers: finalOffers
+      ...cleanedCurrentOffer,
+      offers: finalOffers,
     };
 
-    fetch(`${API_URL}/api/offers`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then(() => {
-        setOffersList(finalOffers);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-      })
-      .catch((err) => console.error('Failed to update offer banner:', err));
+    try {
+      const res = await fetch(`${API_URL}/api/offers`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      setOffersList(finalOffers);
+      setOffer(cleanedCurrentOffer);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      fetchData(activeOfferIdx);
+    } catch (err) {
+      console.error('Failed to update offer banner:', err);
+    }
   };
 
   // Delete Brand
@@ -281,13 +367,22 @@ export default function AdminOffersPage() {
           <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider">
             Offers & Banners ({offersList.length || 1})
           </span>
-          <button
-            type="button"
-            onClick={handleAddNewOffer}
-            className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-black px-3 py-1 rounded-xl transition cursor-pointer active:scale-95"
-          >
-            + Add Offer
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => fetchData(activeOfferIdx)}
+              className="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-[10px] font-black px-2.5 py-1 rounded-xl transition cursor-pointer active:scale-95"
+            >
+              ↻ Sync DB
+            </button>
+            <button
+              type="button"
+              onClick={handleAddNewOffer}
+              className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-black px-3 py-1 rounded-xl transition cursor-pointer active:scale-95"
+            >
+              + Add Offer
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
