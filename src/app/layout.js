@@ -50,13 +50,20 @@ export default function AdminRootLayout({ children }) {
                 <a href="/geofence" className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-orange-200 transition whitespace-nowrap">
                   🗺️ Geo ↗
                 </a>
-               <a
-  href="/delivery-partners"
-  className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[9px] font-bold px-2.5 py-1 rounded-lg border border-orange-200 transition whitespace-nowrap cursor-pointer shadow-sm inline-flex items-center space-x-1"
->
-  <span>Delivery Partners 🛵</span>
-  <span>↗</span>
-</a>
+                <Link
+                  href="/AdminPushSender"
+                  className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-orange-200 transition whitespace-nowrap inline-flex items-center space-x-0.5"
+                >
+                  <span>🔔</span>
+                  <span>Push</span>
+                </Link>
+                <a
+                  href="/delivery-partners"
+                  className="bg-orange-50 hover:bg-orange-100 text-orange-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-orange-200 transition whitespace-nowrap cursor-pointer shadow-sm inline-flex items-center space-x-1"
+                >
+                  <span>Delivery Partners 🛵</span>
+                  <span>↗</span>
+                </a>
               </div>
             </header>
           )}
