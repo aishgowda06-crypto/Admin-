@@ -60,8 +60,8 @@ export default function AdminAddFoodDish() {
 
   // Helper function to upload files directly from frontend to Cloudinary
   const uploadDirectToCloudinary = async (file) => {
-    const cloudName = 'divin440';
-    const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'shopmatries_preset';
+    const cloudName = 'a18fmmhv';
+    const uploadPreset = process.env.NEW_NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'buybrigg';
 
     const data = new FormData();
     data.append('file', file);
